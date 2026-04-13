@@ -1,0 +1,15 @@
+[workspace]
+members = [
+    "crates/geneaquilt-core",
+    "crates/geneaquilt-layout",
+    "crates/geneaquilt-wasm",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2024"
+license = "BSD-3-Clause"
+authors = ["OpenAI Codex"]
+
+[workspace.lints.rust]
+unsafe_code = "forbid"

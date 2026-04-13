@@ -1,0 +1,17 @@
+[package]
+name = "geneaquilt-wasm"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[lib]
+path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+geneaquilt-core = { path = "../geneaquilt-core" }
+geneaquilt-layout = { path = "../geneaquilt-layout" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+wasm-bindgen = "0.2"
