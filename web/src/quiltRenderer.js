@@ -52,6 +52,8 @@ export class QuiltRenderer {
     this.isolateDepth = 3;
     this.expandedNames = true;
     this.zoomSpeed = DEFAULT_WHEEL_ZOOM_SPEED;
+    this.rotationDegrees = 0;
+    this.rotationRadians = 0;
     this.scale = 1;
     this.offsetX = 0;
     this.offsetY = 0;
@@ -304,12 +306,34 @@ export class QuiltRenderer {
     this.zoomSpeed = speed;
   }
 
+  setRotationDegrees(degrees) {
+    const next = clamp(Number.isFinite(degrees) ? degrees : 0, -90, 90);
+    this.rotationDegrees = next;
+    this.rotationRadians = (next * Math.PI) / 180;
+    this.render();
+  }
+
+  exportInteractiveHtml({ title = "GeneaQuilt export", autoPrint = false } = {}) {
+    if (!this.geometry) {
+      return null;
+    }
+
+    return buildInteractiveHtmlDocument(this, {
+      title,
+      autoPrint,
+    });
+  }
+
   fit() {
     if (!this.geometry) {
       return;
     }
 
-    const bounds = this.geometry.bounds;
+    const bounds = computeRotatedBounds([this.geometry.bounds], this.rotationRadians);
+    this.fitBounds(bounds);
+  }
+
+  fitBounds(bounds) {
     const fitWidth = bounds.width + FIT_PADDING_X * 2;
     const fitHeight = bounds.height + FIT_PADDING_Y * 2;
     this.scale = clamp(
@@ -334,27 +358,8 @@ export class QuiltRenderer {
       return;
     }
 
-    const minX = Math.min(...vertices.map((vertex) => vertex.x));
-    const minY = Math.min(...vertices.map((vertex) => vertex.y));
-    const maxX = Math.max(...vertices.map((vertex) => vertex.x + vertex.width));
-    const maxY = Math.max(...vertices.map((vertex) => vertex.y + vertex.height));
-    const bounds = {
-      minX,
-      minY,
-      width: Math.max(1, maxX - minX),
-      height: Math.max(1, maxY - minY),
-    };
-
-    const fitWidth = bounds.width + FIT_PADDING_X * 2;
-    const fitHeight = bounds.height + FIT_PADDING_Y * 2;
-    this.scale = clamp(
-      Math.min(this.width / fitWidth, this.height / fitHeight),
-      MIN_SCALE,
-      MAX_SCALE,
-    );
-    this.offsetX = this.width / 2 - (bounds.minX + bounds.width / 2) * this.scale;
-    this.offsetY = FIT_PADDING_Y - bounds.minY * this.scale;
-    this.render();
+    const bounds = computeRotatedBounds(vertices, this.rotationRadians);
+    this.fitBounds(bounds);
   }
 
   zoomBy(multiplier) {
@@ -368,19 +373,33 @@ export class QuiltRenderer {
   }
 
   zoomAt(screenX, screenY, multiplier) {
-    const worldX = (screenX - this.offsetX) / this.scale;
-    const worldY = (screenY - this.offsetY) / this.scale;
+    const world = this.screenToWorld(screenX, screenY);
     this.scale = clamp(this.scale * multiplier, MIN_SCALE, MAX_SCALE);
-    this.offsetX = screenX - worldX * this.scale;
-    this.offsetY = screenY - worldY * this.scale;
+    const rotated = rotatePoint(world, sceneCenter(this.geometry), this.rotationRadians);
+    this.offsetX = screenX - rotated.x * this.scale;
+    this.offsetY = screenY - rotated.y * this.scale;
     this.render();
   }
 
   screenToWorld(screenX, screenY) {
+    return screenToWorldPoint(screenX, screenY, this.sceneTransform());
+  }
+
+  sceneTransform(scale = this.scale, offsetX = this.offsetX, offsetY = this.offsetY) {
     return {
-      x: (screenX - this.offsetX) / this.scale,
-      y: (screenY - this.offsetY) / this.scale,
+      scale,
+      offsetX,
+      offsetY,
+      rotationRadians: this.rotationRadians,
+      center: sceneCenter(this.geometry),
     };
+  }
+
+  centerOnWorldPoint(worldX, worldY) {
+    const rotated = rotatePoint({ x: worldX, y: worldY }, sceneCenter(this.geometry), this.rotationRadians);
+    this.offsetX = this.width / 2 - rotated.x * this.scale;
+    this.offsetY = this.height / 2 - rotated.y * this.scale;
+    this.render();
   }
 
   hitTest(screenX, screenY) {
@@ -420,8 +439,7 @@ export class QuiltRenderer {
     drawPaper(ctx, this.width, this.height);
 
     ctx.save();
-    ctx.translate(this.offsetX, this.offsetY);
-    ctx.scale(this.scale, this.scale);
+    applySceneTransform(ctx, this.sceneTransform());
 
     drawGenerationBlocks(ctx, this.geometry, this);
     const ranges = buildConnectionRanges(this.geometry.edges);
@@ -443,12 +461,8 @@ export class QuiltRenderer {
     const rect = this.minimapCanvas.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
-    const worldX = (x - this.minimapTransform.offsetX) / this.minimapTransform.scale;
-    const worldY = (y - this.minimapTransform.offsetY) / this.minimapTransform.scale;
-
-    this.offsetX = this.width / 2 - worldX * this.scale;
-    this.offsetY = this.height / 2 - worldY * this.scale;
-    this.render();
+    const world = screenToWorldPoint(x, y, this.minimapTransform);
+    this.centerOnWorldPoint(world.x, world.y);
   }
 
   renderMinimap() {
@@ -463,13 +477,19 @@ export class QuiltRenderer {
       return;
     }
 
-    const bounds = this.geometry.bounds;
+    const bounds = computeRotatedBounds([this.geometry.bounds], this.rotationRadians);
     const availableWidth = Math.max(1, this.minimapWidth - MINIMAP_PADDING * 2);
     const availableHeight = Math.max(1, this.minimapHeight - MINIMAP_PADDING * 2);
     const minimapScale = Math.min(availableWidth / bounds.width, availableHeight / bounds.height);
     const offsetX = (this.minimapWidth - bounds.width * minimapScale) / 2 - bounds.minX * minimapScale;
     const offsetY = (this.minimapHeight - bounds.height * minimapScale) / 2 - bounds.minY * minimapScale;
-    this.minimapTransform = { scale: minimapScale, offsetX, offsetY };
+    this.minimapTransform = {
+      scale: minimapScale,
+      offsetX,
+      offsetY,
+      rotationRadians: this.rotationRadians,
+      center: sceneCenter(this.geometry),
+    };
 
     ctx.save();
     ctx.fillStyle = "rgba(255, 251, 244, 0.92)";
@@ -479,12 +499,26 @@ export class QuiltRenderer {
     ctx.fill();
     ctx.stroke();
 
+    applySceneTransform(ctx, this.minimapTransform);
+
     for (const generation of this.geometry.generations) {
       if (generation.personBand) {
-        fillMinimapRect(ctx, generation.personBand, minimapScale, offsetX, offsetY, "rgba(11, 110, 116, 0.08)");
+        ctx.fillStyle = "rgba(11, 110, 116, 0.08)";
+        ctx.fillRect(
+          generation.personBand.x,
+          generation.personBand.y,
+          generation.personBand.width,
+          generation.personBand.height,
+        );
       }
       if (generation.familyBand) {
-        fillMinimapRect(ctx, generation.familyBand, minimapScale, offsetX, offsetY, "rgba(154, 93, 22, 0.1)");
+        ctx.fillStyle = "rgba(154, 93, 22, 0.1)";
+        ctx.fillRect(
+          generation.familyBand.x,
+          generation.familyBand.y,
+          generation.familyBand.width,
+          generation.familyBand.height,
+        );
       }
     }
 
@@ -492,38 +526,36 @@ export class QuiltRenderer {
       const selected = vertex.id === this.selectedId;
       const highlighted = this.highlightedVertices.has(vertex.id);
       const timelineFocused = this.timelineFocusIds.has(vertex.id);
-      fillMinimapRect(
-        ctx,
-        vertex,
-        minimapScale,
-        offsetX,
-        offsetY,
-        selected
-          ? "rgba(215, 59, 38, 0.9)"
-          : highlighted
-            ? "rgba(11, 110, 116, 0.72)"
-            : timelineFocused
-              ? "rgba(53, 85, 250, 0.72)"
+      ctx.fillStyle = selected
+        ? "rgba(215, 59, 38, 0.9)"
+        : highlighted
+          ? "rgba(11, 110, 116, 0.72)"
+          : timelineFocused
+            ? "rgba(53, 85, 250, 0.72)"
             : vertex.kind === "family"
               ? "rgba(120, 120, 120, 0.42)"
-              : "rgba(70, 78, 82, 0.42)",
-      );
+              : "rgba(70, 78, 82, 0.42)";
+      ctx.fillRect(vertex.x, vertex.y, vertex.width, vertex.height);
     }
 
-    const viewport = currentViewportWorldBounds(this);
+    ctx.restore();
+
+    const viewport = currentViewportWorldQuad(this);
     ctx.strokeStyle = "rgba(215, 59, 38, 0.92)";
     ctx.lineWidth = 1.5;
     ctx.fillStyle = "rgba(215, 59, 38, 0.08)";
     ctx.beginPath();
-    ctx.rect(
-      viewport.minX * minimapScale + offsetX,
-      viewport.minY * minimapScale + offsetY,
-      viewport.width * minimapScale,
-      viewport.height * minimapScale,
-    );
+    viewport.forEach((point, index) => {
+      const projected = worldToScreenPoint(point, this.minimapTransform);
+      if (index === 0) {
+        ctx.moveTo(projected.x, projected.y);
+      } else {
+        ctx.lineTo(projected.x, projected.y);
+      }
+    });
+    ctx.closePath();
     ctx.fill();
     ctx.stroke();
-    ctx.restore();
   }
 
   startSlide(direction) {
@@ -988,7 +1020,7 @@ function drawHighlightPaths(ctx, geometry, renderer) {
       continue;
     }
 
-    ctx.strokeStyle = highlightStrokeColor(connector.color_indices);
+    ctx.strokeStyle = highlightConnectorStrokeColor(connector.color_indices);
     if (connector.show_from_connector) {
       ctx.beginPath();
       ctx.moveTo(from.centerX, from.centerY);
@@ -1422,6 +1454,16 @@ function highlightStrokeColor(colorIndices) {
     return "rgba(65, 51, 120, 0.96)";
   }
   return hexToRgba(HIGHLIGHT_COLORS[colorIndices[0] % HIGHLIGHT_COLORS.length], 0.94);
+}
+
+function highlightConnectorStrokeColor(colorIndices) {
+  if (!colorIndices?.length) {
+    return "rgba(215, 59, 38, 0.45)";
+  }
+  if (colorIndices.length > 1) {
+    return "rgba(65, 51, 120, 0.45)";
+  }
+  return hexToRgba(HIGHLIGHT_COLORS[colorIndices[0] % HIGHLIGHT_COLORS.length], 0.45);
 }
 
 function highlightFillColor(colorIndices) {

@@ -1,6 +1,6 @@
 use std::collections::{HashSet, VecDeque};
 
-use geneaquilt_core::{GeneaGraph, model::VertexId};
+use geneaquilt_core::{GeneaGraph, VertexRecord, model::VertexId};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LayoutState {
@@ -29,6 +29,7 @@ pub fn assign_layers(graph: &GeneaGraph) -> LayoutState {
     }
 
     fix_component_parity(graph, &components, &mut layers);
+    align_components_by_dates(graph, &components, &mut layers);
     align_orphan_spouses(graph, &mut layers);
 
     let min_layer = layers.iter().copied().min().unwrap_or(0);
@@ -462,6 +463,157 @@ fn fix_component_parity(graph: &GeneaGraph, components: &[Vec<VertexId>], layers
     }
 }
 
+fn align_components_by_dates(graph: &GeneaGraph, components: &[Vec<VertexId>], layers: &mut [isize]) {
+    if components.len() < 2 {
+        return;
+    }
+
+    let dated_components = components
+        .iter()
+        .enumerate()
+        .map(|(index, component)| (index, component_date_points(graph, component, layers)))
+        .filter(|(_, points)| !points.is_empty())
+        .collect::<Vec<_>>();
+
+    if dated_components.len() < 2 {
+        return;
+    }
+
+    let reference_index = dated_components
+        .iter()
+        .max_by_key(|(_, points)| points.len())
+        .map(|(index, _)| *index)
+        .expect("dated components should not be empty");
+    let reference_points = dated_components
+        .iter()
+        .find(|(index, _)| *index == reference_index)
+        .map(|(_, points)| collapse_reference_points(points))
+        .expect("reference component should exist");
+
+    if reference_points.is_empty() {
+        return;
+    }
+
+    for (component_index, points) in dated_components {
+        if component_index == reference_index {
+            continue;
+        }
+
+        let Some((anchor_year, anchor_layer)) = component_anchor(&points) else {
+            continue;
+        };
+        let target_layer = estimate_layer_for_year(&reference_points, anchor_year);
+        let delta = even_delta(target_layer - anchor_layer);
+
+        if delta == 0 {
+            continue;
+        }
+
+        for vertex in &components[component_index] {
+            layers[vertex.0] += delta;
+        }
+    }
+}
+
+fn component_date_points(
+    graph: &GeneaGraph,
+    component: &[VertexId],
+    layers: &[isize],
+) -> Vec<(i32, isize)> {
+    let mut points = Vec::<(i32, isize)>::new();
+
+    for vertex in component {
+        let range = match graph.vertex(*vertex) {
+            Some(VertexRecord::Person(person)) => person.date_range,
+            Some(VertexRecord::Family(family)) => family.date_range,
+            None => None,
+        };
+        if let Some(range) = range {
+            points.push((range.start_year, layers[vertex.0]));
+            if range.end_year != range.start_year {
+                points.push((range.end_year, layers[vertex.0]));
+            }
+        }
+    }
+
+    points.sort_by_key(|(year, layer)| (*year, *layer));
+    points
+}
+
+fn collapse_reference_points(points: &[(i32, isize)]) -> Vec<(i32, f64)> {
+    let mut collapsed = Vec::<(i32, f64)>::new();
+    let mut index = 0usize;
+
+    while index < points.len() {
+        let year = points[index].0;
+        let mut total = 0.0f64;
+        let mut count = 0usize;
+
+        while index < points.len() && points[index].0 == year {
+            total += points[index].1 as f64;
+            count += 1;
+            index += 1;
+        }
+
+        collapsed.push((year, total / count as f64));
+    }
+
+    collapsed
+}
+
+fn component_anchor(points: &[(i32, isize)]) -> Option<(i32, isize)> {
+    if points.is_empty() {
+        return None;
+    }
+
+    let middle = points.len() / 2;
+    Some(points[middle])
+}
+
+fn estimate_layer_for_year(reference_points: &[(i32, f64)], year: i32) -> isize {
+    if reference_points.len() == 1 {
+        return reference_points[0].1.round() as isize;
+    }
+
+    if year <= reference_points[0].0 {
+        return interpolate(reference_points[0], reference_points[1], year);
+    }
+
+    for window in reference_points.windows(2) {
+        let left = window[0];
+        let right = window[1];
+        if year <= right.0 {
+            return interpolate(left, right, year);
+        }
+    }
+
+    interpolate(
+        reference_points[reference_points.len() - 2],
+        reference_points[reference_points.len() - 1],
+        year,
+    )
+}
+
+fn interpolate(left: (i32, f64), right: (i32, f64), year: i32) -> isize {
+    let span = (right.0 - left.0) as f64;
+    if span.abs() < f64::EPSILON {
+        return left.1.round() as isize;
+    }
+
+    let ratio = (year - left.0) as f64 / span;
+    (left.1 + (right.1 - left.1) * ratio).round() as isize
+}
+
+fn even_delta(delta: isize) -> isize {
+    if delta % 2 == 0 {
+        delta
+    } else if delta > 0 {
+        delta + 1
+    } else {
+        delta - 1
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use geneaquilt_core::parse_gedcom;
@@ -570,5 +722,44 @@ mod tests {
 
         assert_eq!(state.layers[daughter.0], state.layers[first_family.0] + 1);
         assert_eq!(state.layers[child.0], state.layers[second_family.0] + 1);
+    }
+
+    #[test]
+    fn aligns_disconnected_components_by_dates() {
+        let gedcom = r#"
+0 @I1@ INDI
+1 NAME Early /Parent/
+1 BIRT
+2 DATE 1000
+1 FAMS @F1@
+0 @I2@ INDI
+1 NAME Early /Child/
+1 BIRT
+2 DATE 1040
+1 FAMC @F1@
+0 @F1@ FAM
+1 HUSB @I1@
+1 CHIL @I2@
+0 @I3@ INDI
+1 NAME Late /Parent/
+1 BIRT
+2 DATE 3400
+1 FAMS @F2@
+0 @I4@ INDI
+1 NAME Late /Child/
+1 BIRT
+2 DATE 3440
+1 FAMC @F2@
+0 @F2@ FAM
+1 HUSB @I3@
+1 CHIL @I4@
+"#;
+
+        let graph = parse_gedcom(gedcom).expect("gedcom should parse");
+        let state = assign_layers(&graph);
+        let early_parent = graph.vertex_id_by_external_id("@I1@").expect("person should exist");
+        let late_parent = graph.vertex_id_by_external_id("@I3@").expect("person should exist");
+
+        assert!(state.layers[late_parent.0] > state.layers[early_parent.0]);
     }
 }

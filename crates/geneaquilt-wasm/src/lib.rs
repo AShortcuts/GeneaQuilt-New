@@ -369,7 +369,11 @@ impl GeneaQuiltEngine {
 
     pub fn search_json(&self, query: &str) -> String {
         let orders = order_lookup(&self.layout);
-        let query = query.trim().to_lowercase();
+        let terms = query
+            .split_whitespace()
+            .map(|term| term.trim().to_lowercase())
+            .filter(|term| !term.is_empty())
+            .collect::<Vec<_>>();
 
         let mut results = self
             .graph
@@ -378,8 +382,8 @@ impl GeneaQuiltEngine {
                 let id = self.graph.vertex_external_id(vertex_id)?;
                 let label = self.graph.vertex_display_label(vertex_id)?;
                 let kind = kind_name_from_graph(&self.graph, vertex_id)?;
-                let haystack = format!("{} {}", id.to_lowercase(), label.to_lowercase());
-                if !query.is_empty() && !haystack.contains(&query) {
+                let haystack = search_haystack(&self.graph, vertex_id, id, &label);
+                if !terms.iter().all(|term| haystack.contains(term)) {
                     return None;
                 }
                 Some(SearchHit {
@@ -577,6 +581,33 @@ fn property_entries(properties: &geneaquilt_core::model::PropertyMap) -> Vec<Pro
             values: values.clone(),
         })
         .collect::<Vec<_>>()
+}
+
+fn search_haystack(
+    graph: &GeneaGraph,
+    vertex_id: geneaquilt_core::VertexId,
+    id: &str,
+    label: &str,
+) -> String {
+    let mut parts = vec![id.to_lowercase(), label.to_lowercase()];
+
+    match graph.vertex(vertex_id) {
+        Some(VertexRecord::Person(person)) => {
+            for (key, values) in &person.properties {
+                parts.push(key.to_lowercase());
+                parts.extend(values.iter().map(|value| value.to_lowercase()));
+            }
+        }
+        Some(VertexRecord::Family(family)) => {
+            for (key, values) in &family.properties {
+                parts.push(key.to_lowercase());
+                parts.extend(values.iter().map(|value| value.to_lowercase()));
+            }
+        }
+        None => {}
+    }
+
+    parts.join(" ")
 }
 
 fn ids_to_labels(
@@ -1378,5 +1409,25 @@ mod tests {
         assert_eq!(summary.matching_people, 0);
         assert_eq!(summary.matching_families, 1);
         assert_eq!(summary.vertex_ids, vec!["@F1@".to_string()]);
+    }
+
+    #[test]
+    fn search_matches_attributes_and_multiple_terms() {
+        let gedcom = r#"
+0 @I1@ INDI
+1 NAME Esther /Person/
+1 BIRT
+2 DATE 3400
+1 SEX F
+0 @F1@ FAM
+"#;
+
+        let graph = parse_gedcom(gedcom).expect("gedcom should parse");
+        let mut layout = assign_layers(&graph);
+        order_layers(&graph, &mut layout);
+        let engine = super::GeneaQuiltEngine { graph, layout };
+
+        assert!(engine.search_json("BIRT 3400").contains("@I1@"));
+        assert!(engine.search_json("Esther SEX").contains("@I1@"));
     }
 }

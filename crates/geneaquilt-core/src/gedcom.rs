@@ -374,12 +374,12 @@ fn parse_year_range(value: &str) -> Option<DateRange> {
     let years = value
         .split(|ch: char| !ch.is_ascii_digit())
         .filter_map(|part| {
-            if part.len() < 3 {
+            if !(3..=4).contains(&part.len()) {
                 return None;
             }
 
             let year = part.parse::<i32>().ok()?;
-            (1000..=2999).contains(&year).then_some(year)
+            (100..=9999).contains(&year).then_some(year)
         })
         .collect::<Vec<_>>();
 
@@ -393,6 +393,8 @@ fn parse_year_range(value: &str) -> Option<DateRange> {
 
 #[cfg(test)]
 mod tests {
+    use crate::timeline::DateRange;
+
     use super::parse_gedcom;
 
     #[test]
@@ -495,5 +497,30 @@ mod tests {
         assert_eq!(graph.person_count(), 2);
         assert_eq!(graph.family_count(), 1);
         assert_eq!(graph.edge_count(), 2);
+    }
+
+    #[test]
+    fn parses_biblical_four_digit_years_above_2999() {
+        let gedcom = r#"
+0 @I1@ INDI
+1 NAME Esther /Person/
+1 DEAT
+2 DATE 3406
+0 @F1@ FAM
+"#;
+
+        let graph = parse_gedcom(gedcom).expect("gedcom should parse");
+        let person_id = graph
+            .vertex_id_by_external_id("@I1@")
+            .expect("person should exist");
+        let person = graph.person(person_id).expect("vertex should be a person");
+
+        assert_eq!(
+            person.date_range,
+            Some(DateRange {
+                start_year: 3406,
+                end_year: 3406,
+            })
+        );
     }
 }

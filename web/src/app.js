@@ -119,7 +119,7 @@ export async function createApp() {
         <div class="toolbar">
           <label class="field search-field">
             <span>Search</span>
-            <input class="search-input" type="search" placeholder="Search names" />
+            <input class="search-input" type="search" placeholder="Search names or attributes" />
           </label>
           <label class="field">
             <span>Highlight mode</span>
@@ -141,8 +141,8 @@ export async function createApp() {
           </label>
           <label class="field slider-field">
             <span>Zoom speed</span>
-            <input class="zoom-speed-input" type="range" min="0" max="100" step="1" value="50" />
-            <strong class="zoom-speed-value">Balanced</strong>
+            <input class="zoom-speed-input" type="range" min="0" max="100" step="1" value="100" />
+            <strong class="zoom-speed-value">Very fast</strong>
           </label>
         </div>
         <section class="timeline-panel">
