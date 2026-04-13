@@ -28,8 +28,8 @@ pub fn assign_layers(graph: &GeneaGraph) -> LayoutState {
         assign_component_layers(graph, component, &sources, &targets, &out_edges, &in_edges, &mut layers);
     }
 
-    tighten_edge_spans(&sources, &targets, &mut layers);
     fix_component_parity(graph, &components, &mut layers);
+    align_orphan_spouses(graph, &mut layers);
 
     let min_layer = layers.iter().copied().min().unwrap_or(0);
     if min_layer < 0 {
@@ -53,25 +53,44 @@ pub fn assign_layers(graph: &GeneaGraph) -> LayoutState {
     }
 }
 
-fn tighten_edge_spans(sources: &[VertexId], targets: &[VertexId], layers: &mut [isize]) {
+fn align_orphan_spouses(graph: &GeneaGraph, layers: &mut [isize]) {
     let mut changed = true;
-    let mut remaining = sources.len().saturating_mul(4).max(1);
+    let mut remaining = graph.edge_count().saturating_mul(2).max(1);
 
     while changed && remaining > 0 {
         remaining -= 1;
         changed = false;
 
-        for (from, to) in sources.iter().zip(targets.iter()) {
-            let desired_target = layers[from.0] - 1;
-            if layers[to.0] < desired_target {
-                layers[to.0] = desired_target;
-                changed = true;
+        for family_id in graph.family_vertex_ids() {
+            let family_layer = layers[family_id.0];
+            let desired_spouse_layer = family_layer - 1;
+            let Some(family) = graph.family(family_id) else {
+                continue;
+            };
+
+            for spouse_ref in [family.husb.as_deref(), family.wife.as_deref()].into_iter().flatten() {
+                let Some(spouse_id) = graph.vertex_id_by_external_id(spouse_ref) else {
+                    continue;
+                };
+                let Some(spouse) = graph.person(spouse_id) else {
+                    continue;
+                };
+
+                // Preserve the original ranker's ancestry constraints for anchored spouses.
+                if !spouse.famc.is_empty() {
+                    continue;
+                }
+
+                if layers[spouse_id.0] < desired_spouse_layer {
+                    layers[spouse_id.0] = desired_spouse_layer;
+                    changed = true;
+                }
             }
         }
     }
 }
 
-fn cycle_edges(graph: &GeneaGraph) -> HashSet<usize> {
+pub(crate) fn cycle_edges(graph: &GeneaGraph) -> HashSet<usize> {
     let mut colors = vec![0u8; graph.vertex_count()];
     let mut cycles = HashSet::<usize>::new();
 
@@ -513,5 +532,43 @@ mod tests {
             state.layers[spouse_without_parents.0],
             state.layers[spouse_with_parents.0]
         );
+    }
+
+    #[test]
+    fn preserves_child_generation_in_cyclic_family_cases() {
+        let gedcom = r#"
+0 @I1@ INDI
+1 NAME Father /One/
+1 FAMS @F1@
+1 FAMS @F2@
+0 @I2@ INDI
+1 NAME Mother /One/
+1 FAMS @F1@
+0 @I3@ INDI
+1 NAME Daughter /One/
+1 FAMC @F1@
+1 FAMS @F2@
+0 @I4@ INDI
+1 NAME Child /Cycle/
+1 FAMC @F2@
+0 @F1@ FAM
+1 HUSB @I1@
+1 WIFE @I2@
+1 CHIL @I3@
+0 @F2@ FAM
+1 HUSB @I1@
+1 WIFE @I3@
+1 CHIL @I4@
+"#;
+
+        let graph = parse_gedcom(gedcom).expect("gedcom should parse");
+        let state = assign_layers(&graph);
+        let first_family = graph.vertex_id_by_external_id("@F1@").expect("family should exist");
+        let second_family = graph.vertex_id_by_external_id("@F2@").expect("family should exist");
+        let daughter = graph.vertex_id_by_external_id("@I3@").expect("person should exist");
+        let child = graph.vertex_id_by_external_id("@I4@").expect("person should exist");
+
+        assert_eq!(state.layers[daughter.0], state.layers[first_family.0] + 1);
+        assert_eq!(state.layers[child.0], state.layers[second_family.0] + 1);
     }
 }

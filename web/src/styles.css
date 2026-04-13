@@ -326,6 +326,14 @@ textarea {
   margin-bottom: 8px;
 }
 
+.timeline-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .timeline-title {
   color: var(--ochre);
   font-size: 0.78rem;
@@ -345,6 +353,14 @@ textarea {
   display: block;
   border-radius: 14px;
   background: rgba(255, 252, 247, 0.78);
+  cursor: crosshair;
+}
+
+.timeline-clear-button {
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.84);
+  font-size: 0.82rem;
 }
 
 .field {

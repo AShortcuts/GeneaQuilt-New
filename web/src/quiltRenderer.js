@@ -45,6 +45,8 @@ export class QuiltRenderer {
     this.highlightConnectorColors = new Map();
     this.doiById = new Map();
     this.searchMatches = new Set();
+    this.timelineFocusIds = new Set();
+    this.timelineFocusRange = null;
     this.selectedId = null;
     this.isolateEnabled = false;
     this.isolateDepth = 3;
@@ -279,6 +281,14 @@ export class QuiltRenderer {
     this.render();
   }
 
+  setTimelineFocus(summary) {
+    this.timelineFocusIds = new Set(summary?.vertex_ids ?? []);
+    this.timelineFocusRange = summary
+      ? { startYear: summary.start_year, endYear: summary.end_year }
+      : null;
+    this.render();
+  }
+
   setIsolation(enabled, depth) {
     this.isolateEnabled = enabled;
     this.isolateDepth = depth;
@@ -300,6 +310,41 @@ export class QuiltRenderer {
     }
 
     const bounds = this.geometry.bounds;
+    const fitWidth = bounds.width + FIT_PADDING_X * 2;
+    const fitHeight = bounds.height + FIT_PADDING_Y * 2;
+    this.scale = clamp(
+      Math.min(this.width / fitWidth, this.height / fitHeight),
+      MIN_SCALE,
+      MAX_SCALE,
+    );
+    this.offsetX = this.width / 2 - (bounds.minX + bounds.width / 2) * this.scale;
+    this.offsetY = FIT_PADDING_Y - bounds.minY * this.scale;
+    this.render();
+  }
+
+  fitToVertexIds(ids) {
+    if (!this.geometry || !ids?.length) {
+      return;
+    }
+
+    const vertices = ids
+      .map((id) => this.vertexById.get(id))
+      .filter(Boolean);
+    if (!vertices.length) {
+      return;
+    }
+
+    const minX = Math.min(...vertices.map((vertex) => vertex.x));
+    const minY = Math.min(...vertices.map((vertex) => vertex.y));
+    const maxX = Math.max(...vertices.map((vertex) => vertex.x + vertex.width));
+    const maxY = Math.max(...vertices.map((vertex) => vertex.y + vertex.height));
+    const bounds = {
+      minX,
+      minY,
+      width: Math.max(1, maxX - minX),
+      height: Math.max(1, maxY - minY),
+    };
+
     const fitWidth = bounds.width + FIT_PADDING_X * 2;
     const fitHeight = bounds.height + FIT_PADDING_Y * 2;
     this.scale = clamp(
@@ -446,6 +491,7 @@ export class QuiltRenderer {
     for (const vertex of this.geometry.vertices) {
       const selected = vertex.id === this.selectedId;
       const highlighted = this.highlightedVertices.has(vertex.id);
+      const timelineFocused = this.timelineFocusIds.has(vertex.id);
       fillMinimapRect(
         ctx,
         vertex,
@@ -456,6 +502,8 @@ export class QuiltRenderer {
           ? "rgba(215, 59, 38, 0.9)"
           : highlighted
             ? "rgba(11, 110, 116, 0.72)"
+            : timelineFocused
+              ? "rgba(53, 85, 250, 0.72)"
             : vertex.kind === "family"
               ? "rgba(120, 120, 120, 0.42)"
               : "rgba(70, 78, 82, 0.42)",
@@ -1016,6 +1064,8 @@ function drawEdges(ctx, geometry, renderer) {
     const highlighted = Boolean(highlightColors?.length);
     const searchRelated =
       renderer.searchMatches.has(edge.personId) || renderer.searchMatches.has(edge.familyId);
+    const timelineRelated =
+      renderer.timelineFocusIds.has(edge.personId) || renderer.timelineFocusIds.has(edge.familyId);
     const alpha = edgeAlpha(edge, renderer);
     if (alpha <= 0.01) {
       continue;
@@ -1025,6 +1075,8 @@ function drawEdges(ctx, geometry, renderer) {
     ctx.globalAlpha = alpha;
     ctx.fillStyle = highlighted
       ? highlightFillColor(highlightColors)
+      : timelineRelated
+        ? "rgba(53, 85, 250, 0.84)"
       : searchRelated
         ? "rgba(154, 93, 22, 0.88)"
         : "rgba(56, 63, 67, 0.78)";
@@ -1098,12 +1150,15 @@ function drawPerson(ctx, vertex, renderer) {
   const highlightColors = renderer.highlightVertexColors.get(vertex.id);
   const highlighted = Boolean(highlightColors?.length);
   const searched = renderer.searchMatches.has(vertex.id);
+  const timelineFocused = renderer.timelineFocusIds.has(vertex.id);
   const worldFontVisible = renderer.scale >= SMALL_TEXT_THRESHOLD;
   const highlightColor = highlightTextColor(highlightColors);
 
   if (!worldFontVisible) {
     ctx.fillStyle = selected
       ? "rgba(215, 59, 38, 0.9)"
+      : timelineFocused
+        ? "rgba(53, 85, 250, 0.72)"
       : searched
         ? "rgba(154, 93, 22, 0.72)"
         : highlighted
@@ -1113,15 +1168,19 @@ function drawPerson(ctx, vertex, renderer) {
     return;
   }
 
-  if (searched || highlighted || selected) {
+  if (searched || highlighted || selected || timelineFocused) {
     ctx.fillStyle = selected
       ? "rgba(255, 236, 232, 0.92)"
+      : timelineFocused
+        ? "rgba(232, 238, 255, 0.94)"
       : "rgba(250, 244, 228, 0.88)";
     ctx.fillRect(vertex.x - 2, vertex.y + 1, vertex.width + 4, vertex.height - 2);
   }
 
   ctx.fillStyle = selected
     ? "#d73b26"
+    : timelineFocused
+      ? "#3555fa"
     : highlighted
       ? highlightColor
       : searched
@@ -1137,6 +1196,7 @@ function drawFamily(ctx, vertex, renderer) {
   const highlightColors = renderer.highlightVertexColors.get(vertex.id);
   const highlighted = Boolean(highlightColors?.length);
   const searched = renderer.searchMatches.has(vertex.id);
+  const timelineFocused = renderer.timelineFocusIds.has(vertex.id);
   const textVisible = renderer.scale >= SMALL_TEXT_THRESHOLD;
   const highlightColor = highlightTextColor(highlightColors);
 
@@ -1145,9 +1205,11 @@ function drawFamily(ctx, vertex, renderer) {
   ctx.fillRect(vertex.x, vertex.y, vertex.width, vertex.height);
   fillFamilyPattern(ctx, vertex, renderer.scale);
 
-  if (selected || searched || highlighted) {
+  if (selected || searched || highlighted || timelineFocused) {
     ctx.fillStyle = selected
       ? "rgba(215, 59, 38, 0.28)"
+      : timelineFocused
+        ? "rgba(53, 85, 250, 0.18)"
       : searched
         ? "rgba(154, 93, 22, 0.2)"
         : highlightFillColorOverlay(highlightColors);
@@ -1157,6 +1219,8 @@ function drawFamily(ctx, vertex, renderer) {
   ctx.strokeStyle =
     selected
       ? "rgba(255,255,255,0.94)"
+      : timelineFocused
+        ? "rgba(53, 85, 250, 0.94)"
       : searched
         ? "rgba(255, 244, 226, 0.94)"
         : highlighted
@@ -1167,10 +1231,17 @@ function drawFamily(ctx, vertex, renderer) {
 
   if (
     textVisible &&
-    (renderer.expandedNames || selected || searched) &&
+    (renderer.expandedNames || selected || searched || timelineFocused) &&
     renderer.scale >= FAMILY_TEXT_THRESHOLD
   ) {
-    ctx.fillStyle = selected ? "white" : highlighted ? highlightColor : FAMILY_BASE_TEXT;
+    ctx.fillStyle =
+      selected
+        ? "white"
+        : timelineFocused
+          ? "#3555fa"
+          : highlighted
+            ? highlightColor
+            : FAMILY_BASE_TEXT;
     ctx.font = FAMILY_FONT;
     ctx.textBaseline = "top";
     ctx.fillText(vertex.label, vertex.x + 2, vertex.y + 2);
@@ -1210,7 +1281,13 @@ function isEdgeVisible(edge, renderer) {
 }
 
 function vertexAlpha(vertex, renderer) {
+  const timelineActive = renderer.timelineFocusRange !== null;
+  const timelineFocused = renderer.timelineFocusIds.has(vertex.id);
+
   if (!renderer.selectedId) {
+    if (timelineActive) {
+      return timelineFocused ? 1 : 0.14;
+    }
     return 1;
   }
   if (renderer.selectedId === vertex.id) {
@@ -1219,21 +1296,37 @@ function vertexAlpha(vertex, renderer) {
   if (renderer.highlightVertexColors.has(vertex.id)) {
     return 0.98;
   }
+  if (timelineActive && timelineFocused) {
+    return 0.92;
+  }
   if (renderer.isolateEnabled) {
     const distance = renderer.doiById.get(vertex.id);
     if (distance == null || distance > renderer.isolateDepth) {
       return 0.05;
     }
   }
+  if (timelineActive && !timelineFocused) {
+    return 0.1;
+  }
   return 0.18;
 }
 
 function edgeAlpha(edge, renderer) {
+  const timelineActive = renderer.timelineFocusRange !== null;
+  const timelineFocused =
+    renderer.timelineFocusIds.has(edge.personId) || renderer.timelineFocusIds.has(edge.familyId);
+
   if (!renderer.selectedId) {
+    if (timelineActive) {
+      return timelineFocused ? 0.94 : 0.08;
+    }
     return 0.92;
   }
   if (renderer.highlightEdgeColors.has(edge.index)) {
     return 1;
+  }
+  if (timelineActive && timelineFocused) {
+    return 0.88;
   }
   if (renderer.isolateEnabled) {
     const personDistance = renderer.doiById.get(edge.personId);
@@ -1246,6 +1339,9 @@ function edgeAlpha(edge, renderer) {
     ) {
       return 0.04;
     }
+  }
+  if (timelineActive && !timelineFocused) {
+    return 0.08;
   }
   return 0.16;
 }

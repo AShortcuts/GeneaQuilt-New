@@ -36,6 +36,7 @@ enum CurrentRecord {
 }
 
 pub fn parse_gedcom(source: &str) -> Result<GeneaGraph, GedcomError> {
+    let source = source.replace("\r\n", "\n").replace('\r', "\n");
     let mut people = Vec::<Person>::new();
     let mut families = Vec::<Family>::new();
     let mut seen_ids = HashSet::<String>::new();
@@ -483,5 +484,16 @@ mod tests {
             person.properties.get("NAME"),
             Some(&vec!["First /Name/".to_string(), "Later /Alias/".to_string()])
         );
+    }
+
+    #[test]
+    fn parses_mac_style_carriage_return_line_endings() {
+        let gedcom = "0 @I1@ INDI\r1 NAME John /Doe/\r1 FAMS @F1@\r0 @I2@ INDI\r1 NAME Jane /Doe/\r1 FAMS @F1@\r0 @F1@ FAM\r1 HUSB @I1@\r1 WIFE @I2@\r";
+
+        let graph = parse_gedcom(gedcom).expect("gedcom should parse");
+
+        assert_eq!(graph.person_count(), 2);
+        assert_eq!(graph.family_count(), 1);
+        assert_eq!(graph.edge_count(), 2);
     }
 }

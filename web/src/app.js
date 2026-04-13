@@ -141,14 +141,17 @@ export async function createApp() {
           </label>
           <label class="field slider-field">
             <span>Zoom speed</span>
-            <input class="zoom-speed-input" type="range" min="0" max="100" step="1" value="92" />
-            <strong class="zoom-speed-value">Very fast</strong>
+            <input class="zoom-speed-input" type="range" min="0" max="100" step="1" value="50" />
+            <strong class="zoom-speed-value">Balanced</strong>
           </label>
         </div>
         <section class="timeline-panel">
           <div class="timeline-header">
             <div class="timeline-title">Timeline</div>
-            <div class="timeline-summary">No dated vertices</div>
+            <div class="timeline-header-actions">
+              <div class="timeline-summary">No dated vertices</div>
+              <button class="button timeline-clear-button" type="button" hidden>Clear range</button>
+            </div>
           </div>
           <canvas class="timeline-canvas"></canvas>
         </section>
@@ -200,6 +203,7 @@ export async function createApp() {
   const countsPill = page.querySelector(".counts-pill");
   const timelineSummary = page.querySelector(".timeline-summary");
   const timelineCanvas = page.querySelector(".timeline-canvas");
+  const timelineClearButton = page.querySelector(".timeline-clear-button");
   const searchResults = page.querySelector(".search-results");
   const detailSummary = page.querySelector(".detail-summary");
   const detailRelations = page.querySelector(".detail-relations");
@@ -214,6 +218,7 @@ export async function createApp() {
   let engine = null;
   let scene = null;
   let timeline = null;
+  let timelineFocus = null;
   let selectedId = null;
   let currentSearchResults = [];
   let namesExpanded = true;
@@ -383,18 +388,56 @@ export async function createApp() {
       `<div class="empty-state">Structured properties appear here after selecting a node.</div>`;
   }
 
+  function renderTimelineFocusDetails(focus) {
+    detailSummary.innerHTML = `
+      <div class="detail-card">
+        <div class="detail-heading">
+          <div>
+            <div class="detail-id">Timeline focus</div>
+            <h3>${focus.start_year}-${focus.end_year}</h3>
+          </div>
+          <span class="kind-pill">date range</span>
+        </div>
+        <div class="detail-grid">
+          <div><span>Dated vertices</span><strong>${focus.matching_vertices_with_dates}</strong></div>
+          <div><span>People</span><strong>${focus.matching_people}</strong></div>
+          <div><span>Families</span><strong>${focus.matching_families}</strong></div>
+        </div>
+      </div>
+    `;
+
+    detailRelations.innerHTML = `
+      <div class="relation-block">
+        <h3>Range filter</h3>
+        <p>${focus.matching_vertices_with_dates ? "Timeline focus is active across the quilt." : "No dated vertices fall inside this year range."}</p>
+      </div>
+      <div class="relation-block">
+        <h3>Interaction</h3>
+        <p>Drag across the timeline to brush a wider range, then click a node inside it to combine date focus with tracing.</p>
+      </div>
+    `;
+
+    detailProperties.innerHTML =
+      `<div class="empty-state">Clear the timeline range or select a node to inspect detailed properties.</div>`;
+  }
+
   function renderTimeline(summary) {
     timeline = summary;
     if (!summary || !summary.bins?.length) {
       timelineSummary.textContent = "No dated vertices";
+      timelineClearButton.hidden = true;
       return;
     }
 
     const activeText = summary.active_range
       ? `active ${summary.active_range[0]}-${summary.active_range[1]}`
       : "no active date focus";
+    const focusText = timelineFocus
+      ? `range ${timelineFocus.start_year}-${timelineFocus.end_year} · ${timelineFocus.matching_vertices_with_dates} dated vertices`
+      : activeText;
     timelineSummary.textContent =
-      `${summary.start_year}-${summary.end_year} · ${summary.total_vertices_with_dates} dated vertices · ${activeText}`;
+      `${summary.start_year}-${summary.end_year} · ${summary.total_vertices_with_dates} dated vertices · ${focusText}`;
+    timelineClearButton.hidden = !timelineFocus;
 
     const rect = timelineCanvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
@@ -443,6 +486,17 @@ export async function createApp() {
           activeHeight,
         );
       }
+    }
+
+    if (timelineFocus) {
+      const totalYears = summary.end_year - summary.start_year + 1;
+      const startX = ((timelineFocus.start_year - summary.start_year) / totalYears) * width;
+      const endX = ((timelineFocus.end_year - summary.start_year + 1) / totalYears) * width;
+      ctx.fillStyle = "rgba(53, 85, 250, 0.12)";
+      ctx.fillRect(startX, chartTop, Math.max(2, endX - startX), chartHeight);
+      ctx.strokeStyle = "rgba(53, 85, 250, 0.92)";
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(startX + 0.75, chartTop + 0.75, Math.max(0.5, endX - startX - 1.5), chartHeight - 1.5);
     }
 
     if (summary.selected_range) {
@@ -515,9 +569,14 @@ export async function createApp() {
       renderer.setInteraction(null);
       renderer.setHighlightSummary(null);
       renderer.setBringAndSlide({ left: null, right: null });
+      renderer.setTimelineFocus(timelineFocus);
       renderer.setIsolation(isolateToggle.checked, Number(depthInput.value));
       renderTimeline(JSON.parse(engine.timeline_json(JSON.stringify([]), null)));
-      renderEmptyDetails();
+      if (timelineFocus) {
+        renderTimelineFocusDetails(timelineFocus);
+      } else {
+        renderEmptyDetails();
+      }
       renderHighlightStack();
       refreshSearch();
       return;
@@ -543,6 +602,7 @@ export async function createApp() {
       renderer.setInteraction(interaction);
       renderer.setHighlightSummary(highlightSummary);
       renderer.setBringAndSlide(bringAndSlide);
+      renderer.setTimelineFocus(timelineFocus);
       renderer.setIsolation(isolateToggle.checked, Number(depthInput.value));
       renderTimeline(timelineSummaryValue);
       renderDetails(details, interaction);
@@ -569,6 +629,8 @@ export async function createApp() {
 
       selectedId = null;
       pinnedHighlightIds = [];
+      timelineFocus = null;
+      renderer.setTimelineFocus(null);
       refreshSearch();
       syncSelection();
     } catch (error) {
@@ -584,6 +646,42 @@ export async function createApp() {
   function loadDefaultGedcom() {
     textarea.value = sampleGedcom;
     analyze();
+  }
+
+  function timelineYearAtOffset(offsetX) {
+    if (!timeline || !timeline.bins?.length) {
+      return null;
+    }
+
+    const rect = timelineCanvas.getBoundingClientRect();
+    if (!rect.width) {
+      return timeline.start_year;
+    }
+
+    const ratio = clamp01(offsetX / rect.width);
+    const span = timeline.end_year - timeline.start_year + 1;
+    return timeline.start_year + Math.min(span - 1, Math.floor(ratio * span));
+  }
+
+  function applyTimelineFocus(startYear, endYear, fit = false) {
+    if (!engine) {
+      return;
+    }
+
+    const normalizedStart = Math.min(startYear, endYear);
+    const normalizedEnd = Math.max(startYear, endYear);
+    timelineFocus = JSON.parse(engine.timeline_focus_json(normalizedStart, normalizedEnd));
+    renderer.setTimelineFocus(timelineFocus);
+    if (fit && timelineFocus.vertex_ids.length) {
+      renderer.fitToVertexIds(timelineFocus.vertex_ids);
+    }
+    syncSelection();
+  }
+
+  function clearTimelineFocus() {
+    timelineFocus = null;
+    renderer.setTimelineFocus(null);
+    syncSelection();
   }
 
   loadDefaultButton.addEventListener("click", loadDefaultGedcom);
@@ -611,8 +709,11 @@ export async function createApp() {
   clearHighlightsButton.addEventListener("click", () => {
     selectedId = null;
     pinnedHighlightIds = [];
+    timelineFocus = null;
+    renderer.setTimelineFocus(null);
     syncSelection();
   });
+  timelineClearButton.addEventListener("click", clearTimelineFocus);
   isolateToggle.addEventListener("change", () => {
     renderer.setIsolation(isolateToggle.checked, Number(depthInput.value));
     renderer.render();
@@ -635,6 +736,44 @@ export async function createApp() {
     analyze();
   });
 
+  let timelineBrush = null;
+  timelineCanvas.addEventListener("pointerdown", (event) => {
+    const year = timelineYearAtOffset(event.offsetX);
+    if (year == null) {
+      return;
+    }
+    timelineCanvas.setPointerCapture(event.pointerId);
+    timelineBrush = {
+      anchorYear: year,
+      moved: false,
+    };
+    applyTimelineFocus(year, year, false);
+  });
+  timelineCanvas.addEventListener("pointermove", (event) => {
+    if (!timelineBrush) {
+      return;
+    }
+    const year = timelineYearAtOffset(event.offsetX);
+    if (year == null) {
+      return;
+    }
+    timelineBrush.moved = timelineBrush.moved || year !== timelineBrush.anchorYear;
+    applyTimelineFocus(timelineBrush.anchorYear, year, false);
+  });
+  timelineCanvas.addEventListener("pointerup", (event) => {
+    if (!timelineBrush) {
+      return;
+    }
+    timelineCanvas.releasePointerCapture(event.pointerId);
+    const year = timelineYearAtOffset(event.offsetX);
+    const endYear = year ?? timelineBrush.anchorYear;
+    applyTimelineFocus(timelineBrush.anchorYear, endYear, true);
+    timelineBrush = null;
+  });
+  timelineCanvas.addEventListener("pointercancel", () => {
+    timelineBrush = null;
+  });
+
   renderIdleSearchState();
   renderEmptyDetails();
   renderHighlightStack();
@@ -651,7 +790,7 @@ function escapeHtml(value) {
 
 function sliderValueToZoomSpeed(value) {
   const ratio = clamp01(value / 100);
-  return 0.00015 * Math.pow(2, ratio * 5.4);
+  return 0.00015 * Math.pow(2, ratio * 7.2);
 }
 
 function sliderValueToZoomLabel(value) {

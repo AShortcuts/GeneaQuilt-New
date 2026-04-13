@@ -191,6 +191,16 @@ struct TimelineSummary {
     bins: Vec<TimelineBin>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+struct TimelineFocusSummary {
+    start_year: i32,
+    end_year: i32,
+    matching_vertices_with_dates: usize,
+    matching_people: usize,
+    matching_families: usize,
+    vertex_ids: Vec<String>,
+}
+
 fn engine_status() -> EngineStatus {
     let graph = GeneaGraph::new();
 
@@ -528,6 +538,11 @@ impl GeneaQuiltEngine {
         let summary = build_timeline_summary(&self.graph, &external_ids, selected_id.as_deref())?;
         Ok(serde_json::to_string(&summary).expect("timeline summary should serialize"))
     }
+
+    pub fn timeline_focus_json(&self, start_year: i32, end_year: i32) -> Result<String, JsValue> {
+        let summary = build_timeline_focus_summary(&self.graph, start_year, end_year)?;
+        Ok(serde_json::to_string(&summary).expect("timeline focus summary should serialize"))
+    }
 }
 
 impl GeneaQuiltEngine {
@@ -808,6 +823,50 @@ fn build_timeline_summary(
     })
 }
 
+fn build_timeline_focus_summary(
+    graph: &GeneaGraph,
+    start_year: i32,
+    end_year: i32,
+) -> Result<TimelineFocusSummary, JsValue> {
+    if start_year > end_year {
+        return Err(JsValue::from_str("timeline focus range is invalid"));
+    }
+
+    let mut vertex_ids = Vec::<String>::new();
+    let mut matching_people = 0usize;
+    let mut matching_families = 0usize;
+
+    for vertex_id in graph.vertex_ids() {
+        let Some(range) = vertex_date_range(graph, vertex_id) else {
+            continue;
+        };
+        if range.end_year < start_year || range.start_year > end_year {
+            continue;
+        }
+
+        let Some(external_id) = graph.vertex_external_id(vertex_id) else {
+            continue;
+        };
+        vertex_ids.push(external_id.to_string());
+        if graph.is_person(vertex_id) {
+            matching_people += 1;
+        } else {
+            matching_families += 1;
+        }
+    }
+
+    vertex_ids.sort();
+
+    Ok(TimelineFocusSummary {
+        start_year,
+        end_year,
+        matching_vertices_with_dates: vertex_ids.len(),
+        matching_people,
+        matching_families,
+        vertex_ids,
+    })
+}
+
 fn collect_connector_highlights(
     graph: &GeneaGraph,
     layout: &LayoutState,
@@ -1018,7 +1077,8 @@ fn mode_name(mode: HighlightMode) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::{
-        TraversalDirection, build_highlight_summary, build_timeline_summary,
+        TraversalDirection, build_highlight_summary, build_timeline_focus_summary,
+        build_timeline_summary,
         choose_unique_connector_edge,
         collect_connector_highlights,
     };
@@ -1280,5 +1340,43 @@ mod tests {
         assert_eq!(summary.selected_range, Some((1930, 1930)));
         assert_eq!(summary.active_range, Some((1930, 1930)));
         assert!(!summary.bins.is_empty());
+    }
+
+    #[test]
+    fn timeline_focus_summary_filters_overlapping_vertices() {
+        let gedcom = r#"
+0 @I1@ INDI
+1 NAME Parent /One/
+1 BIRT
+2 DATE 1900
+1 FAMS @F1@
+0 @I2@ INDI
+1 NAME Parent /Two/
+1 BIRT
+2 DATE 1904
+1 FAMS @F1@
+0 @I3@ INDI
+1 NAME Child /One/
+1 BIRT
+2 DATE 1930
+1 FAMC @F1@
+0 @F1@ FAM
+1 MARR
+2 DATE 1920
+1 HUSB @I1@
+1 WIFE @I2@
+1 CHIL @I3@
+"#;
+
+        let graph = parse_gedcom(gedcom).expect("gedcom should parse");
+        let summary =
+            build_timeline_focus_summary(&graph, 1910, 1925).expect("timeline focus should build");
+
+        assert_eq!(summary.start_year, 1910);
+        assert_eq!(summary.end_year, 1925);
+        assert_eq!(summary.matching_vertices_with_dates, 1);
+        assert_eq!(summary.matching_people, 0);
+        assert_eq!(summary.matching_families, 1);
+        assert_eq!(summary.vertex_ids, vec!["@F1@".to_string()]);
     }
 }
