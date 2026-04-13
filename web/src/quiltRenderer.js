@@ -149,7 +149,10 @@ export class QuiltRenderer {
             ? this.slideState.destinationId
             : null;
         const shouldRestore = !destinationId;
-        this.finishSlide(shouldRestore);
+        this.finishSlide({
+          restoreCamera: shouldRestore,
+          centerOnDestination: Boolean(destinationId),
+        });
         if (destinationId) {
           this.onSelect?.(destinationId);
         }
@@ -272,7 +275,7 @@ export class QuiltRenderer {
   setBringAndSlide(controls) {
     this.bringAndSlide = controls ?? { left: null, right: null };
     if (this.slideState && this.slideState.focusId !== this.selectedId) {
-      this.finishSlide(false);
+      this.finishSlide();
     } else {
       this.render();
     }
@@ -329,7 +332,11 @@ export class QuiltRenderer {
       return;
     }
 
-    const bounds = computeRotatedBounds([this.geometry.bounds], this.rotationRadians);
+    const bounds = computeRotatedBounds(
+      [this.geometry.bounds],
+      this.rotationRadians,
+      sceneCenter(this.geometry),
+    );
     this.fitBounds(bounds);
   }
 
@@ -358,7 +365,7 @@ export class QuiltRenderer {
       return;
     }
 
-    const bounds = computeRotatedBounds(vertices, this.rotationRadians);
+    const bounds = computeRotatedBounds(vertices, this.rotationRadians, sceneCenter(this.geometry));
     this.fitBounds(bounds);
   }
 
@@ -406,21 +413,15 @@ export class QuiltRenderer {
     if (!this.geometry) {
       return null;
     }
-
-    const worldX = (screenX - this.offsetX) / this.scale;
-    const worldY = (screenY - this.offsetY) / this.scale;
+    const transform = this.sceneTransform();
 
     for (let index = this.vertexRects.length - 1; index >= 0; index -= 1) {
       const vertex = this.vertexRects[index];
       if (!isVertexVisible(vertex, this)) {
         continue;
       }
-      if (
-        worldX >= vertex.x &&
-        worldX <= vertex.x + vertex.width &&
-        worldY >= vertex.y &&
-        worldY <= vertex.y + vertex.height
-      ) {
+      const quad = rectCorners(vertex).map((corner) => worldToScreenPoint(corner, transform));
+      if (pointInPolygon({ x: screenX, y: screenY }, quad)) {
         return vertex;
       }
     }
@@ -477,7 +478,11 @@ export class QuiltRenderer {
       return;
     }
 
-    const bounds = computeRotatedBounds([this.geometry.bounds], this.rotationRadians);
+    const bounds = computeRotatedBounds(
+      [this.geometry.bounds],
+      this.rotationRadians,
+      sceneCenter(this.geometry),
+    );
     const availableWidth = Math.max(1, this.minimapWidth - MINIMAP_PADDING * 2);
     const availableHeight = Math.max(1, this.minimapHeight - MINIMAP_PADDING * 2);
     const minimapScale = Math.min(availableWidth / bounds.width, availableHeight / bounds.height);
@@ -571,7 +576,7 @@ export class QuiltRenderer {
         if (!actual) {
           return null;
         }
-        return buildSlideCandidate(direction, focus, actual, candidate.label, index, controls.candidates.length);
+        return buildSlideCandidate(direction, focus, actual, candidate, index, controls.candidates.length);
       })
       .filter(Boolean);
 
@@ -631,42 +636,30 @@ export class QuiltRenderer {
     };
     this.slideState.destinationId = closest.candidate.id;
     this.slideState.progress = closest.u;
-
-    const destinationCenter = {
-      x: closest.candidate.actual.centerX,
-      y: closest.candidate.actual.centerY,
-    };
-    const viewportCenter = {
-      x:
-        lerp(
-          this.slideState.focusAnchor.x + this.slideState.focusOffsetWorld.x,
-          destinationCenter.x + this.slideState.focusOffsetWorld.x,
-          closest.u,
-        ),
-      y:
-        lerp(
-          this.slideState.focusAnchor.y + this.slideState.focusOffsetWorld.y,
-          destinationCenter.y + this.slideState.focusOffsetWorld.y,
-          closest.u,
-        ),
-    };
-
-    this.offsetX = this.width / 2 - viewportCenter.x * this.scale;
-    this.offsetY = this.height / 2 - viewportCenter.y * this.scale;
     this.render();
   }
 
-  finishSlide(restoreCamera) {
+  finishSlide({ restoreCamera = false, centerOnDestination = false } = {}) {
     if (!this.slideState) {
       return;
     }
 
+    const destinationId = centerOnDestination ? this.slideState.destinationId : null;
+    const originOffsetX = this.slideState.originOffsetX;
+    const originOffsetY = this.slideState.originOffsetY;
     if (restoreCamera) {
-      this.offsetX = this.slideState.originOffsetX;
-      this.offsetY = this.slideState.originOffsetY;
+      this.offsetX = originOffsetX;
+      this.offsetY = originOffsetY;
     }
 
     this.slideState = null;
+    if (destinationId) {
+      const destination = this.vertexById.get(destinationId);
+      if (destination) {
+        this.centerOnWorldPoint(destination.centerX, destination.centerY);
+        return;
+      }
+    }
     this.render();
   }
 }
@@ -898,6 +891,105 @@ function computeBounds(vertices, generations) {
   };
 }
 
+function sceneCenter(geometry) {
+  const bounds = geometry?.bounds ?? { minX: 0, minY: 0, width: 0, height: 0 };
+  return {
+    x: bounds.minX + bounds.width / 2,
+    y: bounds.minY + bounds.height / 2,
+  };
+}
+
+function rotatePoint(point, center, radians) {
+  if (!radians) {
+    return { x: point.x, y: point.y };
+  }
+
+  const dx = point.x - center.x;
+  const dy = point.y - center.y;
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  return {
+    x: center.x + dx * cos - dy * sin,
+    y: center.y + dx * sin + dy * cos,
+  };
+}
+
+function worldToScreenPoint(point, transform) {
+  const rotated = rotatePoint(point, transform.center, transform.rotationRadians);
+  return {
+    x: rotated.x * transform.scale + transform.offsetX,
+    y: rotated.y * transform.scale + transform.offsetY,
+  };
+}
+
+function screenToWorldPoint(screenX, screenY, transform) {
+  const world = {
+    x: (screenX - transform.offsetX) / transform.scale,
+    y: (screenY - transform.offsetY) / transform.scale,
+  };
+  return rotatePoint(world, transform.center, -transform.rotationRadians);
+}
+
+function applySceneTransform(ctx, transform) {
+  ctx.translate(transform.offsetX, transform.offsetY);
+  ctx.scale(transform.scale, transform.scale);
+  ctx.translate(transform.center.x, transform.center.y);
+  ctx.rotate(transform.rotationRadians);
+  ctx.translate(-transform.center.x, -transform.center.y);
+}
+
+function rectCorners(rect) {
+  const x = rect.x ?? rect.minX ?? 0;
+  const y = rect.y ?? rect.minY ?? 0;
+  return [
+    { x, y },
+    { x: x + rect.width, y },
+    { x: x + rect.width, y: y + rect.height },
+    { x, y: y + rect.height },
+  ];
+}
+
+function boundsFromPoints(points) {
+  const minX = Math.min(...points.map((point) => point.x));
+  const minY = Math.min(...points.map((point) => point.y));
+  const maxX = Math.max(...points.map((point) => point.x));
+  const maxY = Math.max(...points.map((point) => point.y));
+  return {
+    minX,
+    minY,
+    width: Math.max(1, maxX - minX),
+    height: Math.max(1, maxY - minY),
+  };
+}
+
+function computeRotatedBounds(rects, radians, center = sceneCenter({ bounds: computeBoundsFromRects(rects) })) {
+  if (!rects.length) {
+    return { minX: 0, minY: 0, width: 1, height: 1 };
+  }
+
+  const points = rects.flatMap((rect) =>
+    rectCorners(rect).map((corner) => rotatePoint(corner, center, radians)),
+  );
+  return boundsFromPoints(points);
+}
+
+function computeBoundsFromRects(rects) {
+  if (!rects.length) {
+    return { minX: 0, minY: 0, width: 1, height: 1 };
+  }
+
+  const minX = Math.min(...rects.map((rect) => rect.x ?? rect.minX ?? 0));
+  const minY = Math.min(...rects.map((rect) => rect.y ?? rect.minY ?? 0));
+  const maxX = Math.max(...rects.map((rect) => (rect.x ?? rect.minX ?? 0) + rect.width));
+  const maxY = Math.max(...rects.map((rect) => (rect.y ?? rect.minY ?? 0) + rect.height));
+  return {
+    minX,
+    minY,
+    width: Math.max(1, maxX - minX),
+    height: Math.max(1, maxY - minY),
+  };
+}
+
 function drawPaper(ctx, width, height) {
   const gradient = ctx.createLinearGradient(0, 0, width, height);
   gradient.addColorStop(0, "#faf2e3");
@@ -1069,10 +1161,15 @@ function drawBringAndSlide(ctx, renderer) {
       candidate.overlay.height,
     );
 
+    ctx.fillStyle = active ? "rgba(55, 64, 200, 1)" : "rgba(84, 92, 101, 0.94)";
+    ctx.font = '9px Georgia, "Times New Roman", serif';
+    ctx.textBaseline = "top";
+    ctx.fillText(candidate.relationLabel, candidate.overlay.x + 4 / renderer.scale, candidate.overlay.y + 3 / renderer.scale);
+
     ctx.fillStyle = active ? "rgba(55, 64, 200, 1)" : "#1d252d";
     ctx.font = PERSON_FONT;
     ctx.textBaseline = "top";
-    ctx.fillText(candidate.label, candidate.overlay.x, candidate.overlay.y);
+    ctx.fillText(candidate.label, candidate.overlay.x + 4 / renderer.scale, candidate.overlay.y + 13 / renderer.scale);
   }
 
   ctx.fillStyle = "rgba(80, 96, 250, 0.96)";
@@ -1382,16 +1479,18 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
-function buildSlideCandidate(direction, focus, actual, label, index, total) {
+function buildSlideCandidate(direction, focus, actual, candidate, index, total) {
   const angle = Math.PI / (total + 1);
   const i = index + 1;
   const distance =
     direction === "right"
       ? Math.max((2 * focus.height) / angle, SLIDE_DISTANCE)
       : SLIDE_DISTANCE;
+  const overlayWidth = Math.max(actual.width + 12, (candidate.label.length * 6.5) + 18);
+  const overlayHeight = Math.max(actual.height + 12, 28);
   const overlayX =
     direction === "left"
-      ? focus.x - Math.sin(angle * i) * distance - actual.width
+      ? focus.x - Math.sin(angle * i) * distance - overlayWidth
       : focus.x + focus.width + Math.sin(angle * i) * distance;
   const overlayY = focus.y - Math.cos(angle * i) * distance;
   const line =
@@ -1399,30 +1498,46 @@ function buildSlideCandidate(direction, focus, actual, label, index, total) {
       ? {
         x1: focus.x,
         y1: focus.centerY,
-        x2: overlayX + actual.width,
-        y2: overlayY + actual.height / 2,
+        x2: overlayX + overlayWidth,
+        y2: overlayY + overlayHeight / 2,
       }
       : {
         x1: focus.x + focus.width,
         y1: focus.centerY,
         x2: overlayX,
-        y2: overlayY + actual.height / 2,
+        y2: overlayY + overlayHeight / 2,
       };
 
   return {
     id: actual.id,
-    label,
+    label: candidate.label,
+    relationLabel: slideRelationLabel(candidate.relation),
     actual,
     overlay: {
       x: overlayX,
       y: overlayY,
-      width: actual.width,
-      height: actual.height,
-      centerX: overlayX + actual.width / 2,
-      centerY: overlayY + actual.height / 2,
+      width: overlayWidth,
+      height: overlayHeight,
+      centerX: overlayX + overlayWidth / 2,
+      centerY: overlayY + overlayHeight / 2,
     },
     line,
   };
+}
+
+function slideRelationLabel(relation) {
+  switch (relation) {
+    case "parent":
+      return "Parent";
+    case "sibling":
+      return "Sibling";
+    case "spouse":
+      return "Spouse";
+    case "child":
+      return "Child";
+    default:
+      return "Related";
+  }
 }
 
 function projectOntoSegment(line, point) {
@@ -1535,25 +1650,557 @@ function fillFamilyPattern(ctx, vertex, scale) {
   ctx.restore();
 }
 
-function currentViewportWorldBounds(renderer) {
-  const minX = (-renderer.offsetX) / renderer.scale;
-  const minY = (-renderer.offsetY) / renderer.scale;
-  return {
-    minX,
-    minY,
-    width: renderer.width / renderer.scale,
-    height: renderer.height / renderer.scale,
-  };
+function currentViewportWorldQuad(renderer) {
+  return [
+    renderer.screenToWorld(0, 0),
+    renderer.screenToWorld(renderer.width, 0),
+    renderer.screenToWorld(renderer.width, renderer.height),
+    renderer.screenToWorld(0, renderer.height),
+  ];
 }
 
-function fillMinimapRect(ctx, rect, scale, offsetX, offsetY, fillStyle) {
-  ctx.fillStyle = fillStyle;
-  ctx.fillRect(
-    rect.x * scale + offsetX,
-    rect.y * scale + offsetY,
-    Math.max(1, rect.width * scale),
-    Math.max(1, rect.height * scale),
-  );
+function buildInteractiveHtmlDocument(renderer, { title, autoPrint }) {
+  const geometry = renderer.geometry;
+  const summary = renderer.scene?.summary ?? null;
+  const svg = buildExportSvgMarkup(renderer, title);
+  const subtitle = summary
+    ? `${summary.layers} layers · ${renderer.scene.vertices.length} vertices · ${renderer.scene.edges.length} edges`
+    : "Portable GeneaQuilt snapshot";
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${escapeMarkup(title)}</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --paper: #f7efe1;
+        --panel: rgba(255, 251, 244, 0.92);
+        --line: rgba(29, 37, 45, 0.14);
+        --ink: #1d252d;
+        --muted: #67727d;
+        --accent: #d73b26;
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: Georgia, "Times New Roman", serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(215, 59, 38, 0.1), transparent 34%),
+          linear-gradient(160deg, #f3eadb, #efe4d0 60%, #f9f3e8);
+      }
+
+      .page {
+        width: min(96vw, 1480px);
+        margin: 0 auto;
+        padding: 24px 0 32px;
+      }
+
+      .hero, .shell {
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        background: var(--panel);
+        backdrop-filter: blur(12px);
+        box-shadow: 0 24px 60px rgba(31, 41, 48, 0.12);
+      }
+
+      .hero {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 20px 24px;
+        margin-bottom: 16px;
+        align-items: end;
+      }
+
+      h1 {
+        margin: 0 0 6px;
+        font-size: clamp(1.6rem, 2vw, 2.25rem);
+      }
+
+      .lede, .meta { margin: 0; color: var(--muted); }
+      .shell { padding: 18px; }
+      .controls {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+        margin-bottom: 14px;
+      }
+
+      button, input[type="range"] {
+        accent-color: var(--accent);
+      }
+
+      button {
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 10px 14px;
+        background: rgba(255, 255, 255, 0.88);
+        color: var(--ink);
+        font: inherit;
+        cursor: pointer;
+      }
+
+      .field {
+        display: inline-grid;
+        grid-template-columns: auto 180px auto;
+        gap: 10px;
+        align-items: center;
+        padding: 0 4px;
+      }
+
+      .stage {
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        overflow: hidden;
+        background: rgba(255, 255, 255, 0.6);
+        cursor: grab;
+      }
+
+      .stage.is-dragging {
+        cursor: grabbing;
+      }
+
+      svg {
+        display: block;
+        width: 100%;
+        height: min(78vh, 980px);
+      }
+
+      @media print {
+        body { background: white; }
+        .page { width: auto; padding: 0; }
+        .hero, .shell, .stage { box-shadow: none; border: none; }
+        .controls { display: none; }
+        svg { height: auto; max-height: none; }
+      }
+
+      @media (max-width: 860px) {
+        .hero { flex-direction: column; align-items: start; }
+        .field {
+          width: 100%;
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero">
+        <div>
+          <h1>${escapeMarkup(title)}</h1>
+          <p class="lede">${escapeMarkup(subtitle)}</p>
+        </div>
+        <p class="meta">Drag to pan, use the wheel to zoom, adjust the angle, or print to save a PDF.</p>
+      </section>
+      <section class="shell">
+        <div class="controls">
+          <button type="button" id="fit-button">Fit</button>
+          <button type="button" id="zoom-out-button">Zoom out</button>
+          <button type="button" id="zoom-in-button">Zoom in</button>
+          <button type="button" id="angle-preset-button">Rotate -15°</button>
+          <button type="button" id="angle-reset-button">Reset angle</button>
+          <label class="field">
+            <span>Angle</span>
+            <input id="angle-input" type="range" min="-90" max="90" step="1" value="${formatExportNumber(renderer.rotationDegrees)}" />
+            <strong id="angle-value">${escapeMarkup(formatAngle(renderer.rotationDegrees))}</strong>
+          </label>
+          <button type="button" id="print-button">Print / Save PDF</button>
+        </div>
+        <div class="stage" id="stage">
+          ${svg}
+        </div>
+      </section>
+    </main>
+    <script>
+      (() => {
+        const svg = document.getElementById("snapshot-svg");
+        const viewport = document.getElementById("snapshot-viewport");
+        const rotationLayer = document.getElementById("snapshot-rotation");
+        const stage = document.getElementById("stage");
+        const fitButton = document.getElementById("fit-button");
+        const zoomInButton = document.getElementById("zoom-in-button");
+        const zoomOutButton = document.getElementById("zoom-out-button");
+        const anglePresetButton = document.getElementById("angle-preset-button");
+        const angleResetButton = document.getElementById("angle-reset-button");
+        const angleInput = document.getElementById("angle-input");
+        const angleValue = document.getElementById("angle-value");
+        const printButton = document.getElementById("print-button");
+        const viewBox = svg.getAttribute("viewBox").split(/\\s+/).map(Number);
+        const viewBoxWidth = viewBox[2];
+        const viewBoxHeight = viewBox[3];
+        const centerX = Number(svg.dataset.centerX);
+        const centerY = Number(svg.dataset.centerY);
+        let zoom = 1;
+        let panX = 0;
+        let panY = 0;
+        let angle = Number(svg.dataset.angle || 0);
+        let dragState = null;
+
+        function clamp(value, min, max) {
+          return Math.min(max, Math.max(min, value));
+        }
+
+        function formatAngle(value) {
+          const rounded = Math.round(value);
+          return rounded === 0 ? "0°" : rounded > 0 ? "+" + rounded + "°" : rounded + "°";
+        }
+
+        function apply() {
+          viewport.setAttribute("transform", "matrix(" + zoom + " 0 0 " + zoom + " " + panX + " " + panY + ")");
+          rotationLayer.setAttribute("transform", "rotate(" + angle + " " + centerX + " " + centerY + ")");
+          angleInput.value = String(Math.round(angle));
+          angleValue.textContent = formatAngle(angle);
+        }
+
+        function resetView() {
+          zoom = 1;
+          panX = 0;
+          panY = 0;
+          apply();
+        }
+
+        fitButton.addEventListener("click", resetView);
+        zoomInButton.addEventListener("click", () => {
+          zoom = clamp(zoom * 1.15, 0.45, 8);
+          apply();
+        });
+        zoomOutButton.addEventListener("click", () => {
+          zoom = clamp(zoom / 1.15, 0.45, 8);
+          apply();
+        });
+        anglePresetButton.addEventListener("click", () => {
+          angle = -15;
+          apply();
+        });
+        angleResetButton.addEventListener("click", () => {
+          angle = 0;
+          apply();
+        });
+        angleInput.addEventListener("input", () => {
+          angle = Number(angleInput.value);
+          apply();
+        });
+        printButton.addEventListener("click", () => window.print());
+
+        stage.addEventListener("wheel", (event) => {
+          event.preventDefault();
+          zoom = clamp(zoom * Math.exp(-event.deltaY * 0.0014), 0.45, 8);
+          apply();
+        }, { passive: false });
+
+        stage.addEventListener("pointerdown", (event) => {
+          stage.setPointerCapture(event.pointerId);
+          stage.classList.add("is-dragging");
+          dragState = { x: event.clientX, y: event.clientY };
+        });
+
+        stage.addEventListener("pointermove", (event) => {
+          if (!dragState) {
+            return;
+          }
+          const dx = ((event.clientX - dragState.x) / stage.clientWidth) * viewBoxWidth;
+          const dy = ((event.clientY - dragState.y) / stage.clientHeight) * viewBoxHeight;
+          panX += dx;
+          panY += dy;
+          dragState = { x: event.clientX, y: event.clientY };
+          apply();
+        });
+
+        function stopDrag(event) {
+          if (!dragState) {
+            return;
+          }
+          stage.releasePointerCapture(event.pointerId);
+          stage.classList.remove("is-dragging");
+          dragState = null;
+        }
+
+        stage.addEventListener("pointerup", stopDrag);
+        stage.addEventListener("pointercancel", stopDrag);
+        apply();
+
+        if (${autoPrint ? "true" : "false"}) {
+          window.setTimeout(() => window.print(), 220);
+        }
+      })();
+    </script>
+  </body>
+</html>`;
+}
+
+function buildExportSvgMarkup(renderer, title) {
+  const geometry = renderer.geometry;
+  const center = sceneCenter(geometry);
+  const bounds = computeRotatedBounds([geometry.bounds], renderer.rotationRadians, center);
+  const padding = 28;
+  const viewBox = {
+    minX: bounds.minX - padding,
+    minY: bounds.minY - padding,
+    width: bounds.width + padding * 2,
+    height: bounds.height + padding * 2,
+  };
+  const ranges = buildConnectionRanges(geometry.edges);
+
+  return `<svg
+  id="snapshot-svg"
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="${formatExportNumber(viewBox.minX)} ${formatExportNumber(viewBox.minY)} ${formatExportNumber(viewBox.width)} ${formatExportNumber(viewBox.height)}"
+  data-center-x="${formatExportNumber(center.x)}"
+  data-center-y="${formatExportNumber(center.y)}"
+  data-angle="${formatExportNumber(renderer.rotationDegrees)}"
+  aria-label="${escapeMarkup(title)}"
+  role="img"
+>
+  <defs>
+    <linearGradient id="paper-gradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#faf2e3" />
+      <stop offset="50%" stop-color="#f1e6d2" />
+      <stop offset="100%" stop-color="#f8f1e4" />
+    </linearGradient>
+    <pattern id="family-stripe-pattern" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="6" stroke="rgba(124, 111, 83, 0.28)" stroke-width="1" />
+    </pattern>
+  </defs>
+  <rect x="${formatExportNumber(viewBox.minX)}" y="${formatExportNumber(viewBox.minY)}" width="${formatExportNumber(viewBox.width)}" height="${formatExportNumber(viewBox.height)}" fill="url(#paper-gradient)" />
+  <g id="snapshot-viewport">
+    <g id="snapshot-rotation" transform="rotate(${formatExportNumber(renderer.rotationDegrees)} ${formatExportNumber(center.x)} ${formatExportNumber(center.y)})">
+      ${buildExportGenerationMarkup(geometry)}
+      ${buildExportGridMarkup(geometry, renderer, ranges)}
+      ${buildExportHighlightMarkup(geometry, renderer)}
+      ${buildExportEdgeMarkup(geometry, renderer)}
+      ${buildExportVertexMarkup(geometry, renderer)}
+    </g>
+  </g>
+</svg>`;
+}
+
+function buildExportGenerationMarkup(geometry) {
+  return geometry.generations
+    .map((generation) => {
+      const parts = [];
+      if (generation.personBand) {
+        parts.push(
+          `<rect x="${formatExportNumber(generation.personBand.x - 1)}" y="${formatExportNumber(generation.personBand.y)}" width="${formatExportNumber(generation.personBand.width + 2)}" height="${formatExportNumber(generation.personBand.height)}" fill="rgba(120, 120, 120, 0.14)" />`,
+        );
+      }
+      if (generation.familyBand) {
+        parts.push(
+          `<rect x="${formatExportNumber(generation.familyBand.x)}" y="${formatExportNumber(generation.familyBand.y - 1)}" width="${formatExportNumber(generation.familyBand.width)}" height="${formatExportNumber(generation.familyBand.height + 2)}" fill="rgba(170, 170, 170, 0.14)" />`,
+        );
+      }
+      return parts.join("");
+    })
+    .join("");
+}
+
+function buildExportGridMarkup(geometry, renderer, ranges) {
+  return geometry.vertices
+    .filter((vertex) => isVertexVisible(vertex, renderer))
+    .map((vertex) => {
+      if (vertex.kind === "person") {
+        const range = ranges.personLookup.get(vertex.id);
+        const minX = Math.min(vertex.x, range?.min ?? vertex.x);
+        const maxX = Math.max(vertex.x + vertex.width, range?.max ?? vertex.x + vertex.width);
+        const top = `<line x1="${formatExportNumber(minX)}" y1="${formatExportNumber(vertex.y)}" x2="${formatExportNumber(maxX)}" y2="${formatExportNumber(vertex.y)}" stroke="rgba(120, 120, 120, 0.32)" stroke-width="1" />`;
+        const bottom = range
+          ? ""
+          : `<line x1="${formatExportNumber(vertex.x)}" y1="${formatExportNumber(vertex.y + vertex.height)}" x2="${formatExportNumber(vertex.x + vertex.width)}" y2="${formatExportNumber(vertex.y + vertex.height)}" stroke="rgba(120, 120, 120, 0.32)" stroke-width="1" />`;
+        return `${top}${bottom}`;
+      }
+
+      const range = ranges.familyLookup.get(vertex.id);
+      const minY = Math.min(vertex.y, range?.min ?? vertex.y);
+      const maxY = Math.max(vertex.y + vertex.height, range?.max ?? vertex.y + vertex.height);
+      return `<line x1="${formatExportNumber(vertex.x)}" y1="${formatExportNumber(minY)}" x2="${formatExportNumber(vertex.x)}" y2="${formatExportNumber(maxY)}" stroke="rgba(120, 120, 120, 0.32)" stroke-width="1" />
+<line x1="${formatExportNumber(vertex.x + vertex.width)}" y1="${formatExportNumber(minY)}" x2="${formatExportNumber(vertex.x + vertex.width)}" y2="${formatExportNumber(maxY)}" stroke="rgba(120, 120, 120, 0.32)" stroke-width="1" />`;
+    })
+    .join("");
+}
+
+function buildExportHighlightMarkup(geometry, renderer) {
+  if (!renderer.selectedId || !renderer.highlightConnectorColors.size) {
+    return "";
+  }
+
+  return [...renderer.highlightConnectorColors.values()]
+    .map((connector) => {
+      const edge = geometry.edgeByIndex.get(connector.edge_index);
+      if (!edge || !isEdgeVisible(edge, renderer)) {
+        return "";
+      }
+
+      const from = geometry.vertexById.get(edge.from);
+      const to = geometry.vertexById.get(edge.to);
+      if (!from || !to || !isVertexVisible(from, renderer) || !isVertexVisible(to, renderer)) {
+        return "";
+      }
+
+      const lines = [];
+      const stroke = highlightConnectorStrokeColor(connector.color_indices);
+      if (connector.show_from_connector) {
+        lines.push(
+          `<line x1="${formatExportNumber(from.centerX)}" y1="${formatExportNumber(from.centerY)}" x2="${formatExportNumber(edge.centerX)}" y2="${formatExportNumber(edge.centerY)}" stroke="${stroke}" stroke-width="4.25" stroke-linecap="round" />`,
+        );
+      }
+      if (connector.show_to_connector) {
+        lines.push(
+          `<line x1="${formatExportNumber(edge.centerX)}" y1="${formatExportNumber(edge.centerY)}" x2="${formatExportNumber(to.centerX)}" y2="${formatExportNumber(to.centerY)}" stroke="${stroke}" stroke-width="4.25" stroke-linecap="round" />`,
+        );
+      }
+      return lines.join("");
+    })
+    .join("");
+}
+
+function buildExportEdgeMarkup(geometry, renderer) {
+  return geometry.edges
+    .map((edge) => {
+      const person = geometry.vertexById.get(edge.personId);
+      const family = geometry.vertexById.get(edge.familyId);
+      if (!person || !family || !isEdgeVisible(edge, renderer)) {
+        return "";
+      }
+
+      const alpha = edgeAlpha(edge, renderer);
+      if (alpha <= 0.01) {
+        return "";
+      }
+
+      const highlightColors = renderer.highlightEdgeColors.get(edge.index);
+      const highlighted = Boolean(highlightColors?.length);
+      const searchRelated =
+        renderer.searchMatches.has(edge.personId) || renderer.searchMatches.has(edge.familyId);
+      const timelineRelated =
+        renderer.timelineFocusIds.has(edge.personId) || renderer.timelineFocusIds.has(edge.familyId);
+      const fill = highlighted
+        ? highlightFillColor(highlightColors)
+        : timelineRelated
+          ? "rgba(53, 85, 250, 0.84)"
+          : searchRelated
+            ? "rgba(154, 93, 22, 0.88)"
+            : "rgba(56, 63, 67, 0.78)";
+      const size = Math.min(Math.min(edge.width, edge.height) * 0.62, 8.5);
+      const x = edge.centerX - size / 2;
+      const y = edge.centerY - size / 2;
+      const stroke = highlighted ? ` stroke="rgba(255,255,255,0.88)" stroke-width="1.4"` : "";
+
+      if (edge.sex === "M") {
+        return `<rect x="${formatExportNumber(x)}" y="${formatExportNumber(y)}" width="${formatExportNumber(size)}" height="${formatExportNumber(size)}" fill="${fill}" opacity="${formatExportNumber(alpha)}"${stroke} />`;
+      }
+      if (edge.sex === "F") {
+        return `<ellipse cx="${formatExportNumber(edge.centerX)}" cy="${formatExportNumber(edge.centerY)}" rx="${formatExportNumber(size / 2)}" ry="${formatExportNumber(size / 2)}" fill="${fill}" opacity="${formatExportNumber(alpha)}"${stroke} />`;
+      }
+      return `<polygon points="${formatExportNumber(edge.centerX)},${formatExportNumber(y)} ${formatExportNumber(x + size)},${formatExportNumber(y + size)} ${formatExportNumber(x)},${formatExportNumber(y + size)}" fill="${fill}" opacity="${formatExportNumber(alpha)}"${stroke} />`;
+    })
+    .join("");
+}
+
+function buildExportVertexMarkup(geometry, renderer) {
+  return geometry.vertices
+    .filter((vertex) => isVertexVisible(vertex, renderer))
+    .map((vertex) => {
+      const alpha = vertexAlpha(vertex, renderer);
+      if (alpha <= 0.01) {
+        return "";
+      }
+      return vertex.kind === "person"
+        ? buildExportPersonMarkup(vertex, renderer, alpha)
+        : buildExportFamilyMarkup(vertex, renderer, alpha);
+    })
+    .join("");
+}
+
+function buildExportPersonMarkup(vertex, renderer, alpha) {
+  const selected = renderer.selectedId === vertex.id;
+  const highlightColors = renderer.highlightVertexColors.get(vertex.id);
+  const highlighted = Boolean(highlightColors?.length);
+  const searched = renderer.searchMatches.has(vertex.id);
+  const timelineFocused = renderer.timelineFocusIds.has(vertex.id);
+  const highlightColor = highlightTextColor(highlightColors);
+  const background = selected
+    ? "rgba(255, 236, 232, 0.92)"
+    : timelineFocused
+      ? "rgba(232, 238, 255, 0.94)"
+      : searched || highlighted
+        ? "rgba(250, 244, 228, 0.88)"
+        : null;
+  const fill = selected
+    ? "#d73b26"
+    : timelineFocused
+      ? "#3555fa"
+      : highlighted
+        ? highlightColor
+        : searched
+          ? "#9a5d16"
+          : "#12181d";
+
+  return `${background ? `<rect x="${formatExportNumber(vertex.x - 2)}" y="${formatExportNumber(vertex.y + 1)}" width="${formatExportNumber(vertex.width + 4)}" height="${formatExportNumber(vertex.height - 2)}" fill="${background}" opacity="${formatExportNumber(alpha)}" />` : ""}
+<text x="${formatExportNumber(vertex.x)}" y="${formatExportNumber(vertex.y + 10.5)}" fill="${fill}" opacity="${formatExportNumber(alpha)}" font-family="Georgia, 'Times New Roman', serif" font-size="12">${escapeMarkup(vertex.label)}</text>`;
+}
+
+function buildExportFamilyMarkup(vertex, renderer, alpha) {
+  const selected = renderer.selectedId === vertex.id;
+  const highlightColors = renderer.highlightVertexColors.get(vertex.id);
+  const highlighted = Boolean(highlightColors?.length);
+  const searched = renderer.searchMatches.has(vertex.id);
+  const timelineFocused = renderer.timelineFocusIds.has(vertex.id);
+  const highlightColor = highlightTextColor(highlightColors);
+  const overlay = selected
+    ? "rgba(215, 59, 38, 0.28)"
+    : timelineFocused
+      ? "rgba(53, 85, 250, 0.18)"
+      : searched
+        ? "rgba(154, 93, 22, 0.2)"
+        : highlighted
+          ? highlightFillColorOverlay(highlightColors)
+          : null;
+  const stroke = selected
+    ? "rgba(255,255,255,0.94)"
+    : timelineFocused
+      ? "rgba(53, 85, 250, 0.94)"
+      : searched
+        ? "rgba(255, 244, 226, 0.94)"
+        : highlighted
+          ? highlightStrokeColor(highlightColors)
+          : FAMILY_BASE_STROKE;
+  const labelFill = selected
+    ? "white"
+    : timelineFocused
+      ? "#3555fa"
+      : highlighted
+        ? highlightColor
+        : FAMILY_BASE_TEXT;
+  const showLabel = renderer.expandedNames || selected || searched || timelineFocused || highlighted;
+
+  return `<rect x="${formatExportNumber(vertex.x)}" y="${formatExportNumber(vertex.y)}" width="${formatExportNumber(vertex.width)}" height="${formatExportNumber(vertex.height)}" fill="${FAMILY_BASE_FILL}" opacity="${formatExportNumber(alpha)}" />
+<rect x="${formatExportNumber(vertex.x)}" y="${formatExportNumber(vertex.y)}" width="${formatExportNumber(vertex.width)}" height="${formatExportNumber(vertex.height)}" fill="url(#family-stripe-pattern)" opacity="${formatExportNumber(alpha)}" />
+${overlay ? `<rect x="${formatExportNumber(vertex.x)}" y="${formatExportNumber(vertex.y)}" width="${formatExportNumber(vertex.width)}" height="${formatExportNumber(vertex.height)}" fill="${overlay}" opacity="${formatExportNumber(alpha)}" />` : ""}
+<rect x="${formatExportNumber(vertex.x)}" y="${formatExportNumber(vertex.y)}" width="${formatExportNumber(vertex.width)}" height="${formatExportNumber(vertex.height)}" fill="none" stroke="${stroke}" stroke-width="1" opacity="${formatExportNumber(alpha)}" />
+${showLabel ? `<text x="${formatExportNumber(vertex.x + 2)}" y="${formatExportNumber(vertex.y + 10)}" fill="${labelFill}" opacity="${formatExportNumber(alpha)}" font-family="Georgia, 'Times New Roman', serif" font-size="10">${escapeMarkup(vertex.label)}</text>` : ""}`;
+}
+
+function formatExportNumber(value) {
+  return Number.parseFloat(value.toFixed(2)).toString();
+}
+
+function formatAngle(value) {
+  const rounded = Math.round(value);
+  return rounded === 0 ? "0°" : rounded > 0 ? `+${rounded}°` : `${rounded}°`;
+}
+
+function escapeMarkup(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
 }
 
 function roundRect(ctx, x, y, width, height, radius) {
@@ -1565,4 +2212,24 @@ function roundRect(ctx, x, y, width, height, radius) {
   ctx.arcTo(x, y + height, x, y, clampedRadius);
   ctx.arcTo(x, y, x + width, y, clampedRadius);
   ctx.closePath();
+}
+
+function pointInPolygon(point, polygon) {
+  let inside = false;
+
+  for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index, index += 1) {
+    const current = polygon[index];
+    const prior = polygon[previous];
+    const intersects =
+      current.y > point.y !== prior.y > point.y &&
+      point.x <
+        ((prior.x - current.x) * (point.y - current.y)) / ((prior.y - current.y) || Number.EPSILON) +
+          current.x;
+
+    if (intersects) {
+      inside = !inside;
+    }
+  }
+
+  return inside;
 }

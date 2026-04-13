@@ -119,7 +119,17 @@ export async function createApp() {
         <div class="toolbar">
           <label class="field search-field">
             <span>Search</span>
-            <input class="search-input" type="search" placeholder="Search names or attributes" />
+            <input class="search-input" type="search" placeholder="Search names, dates, or attributes" />
+            <small class="field-note">Dates are searchable by year or GEDCOM date text in All fields or Attributes.</small>
+          </label>
+          <label class="field">
+            <span>Search scope</span>
+            <select class="search-scope-select">
+              <option value="all">All fields</option>
+              <option value="names">Names</option>
+              <option value="attributes">Attributes</option>
+              <option value="ids">IDs</option>
+            </select>
           </label>
           <label class="field">
             <span>Highlight mode</span>
@@ -144,6 +154,17 @@ export async function createApp() {
             <input class="zoom-speed-input" type="range" min="0" max="100" step="1" value="100" />
             <strong class="zoom-speed-value">Very fast</strong>
           </label>
+          <label class="field slider-field">
+            <span>Graph angle</span>
+            <input class="rotation-input" type="range" min="-90" max="90" step="1" value="0" />
+            <strong class="rotation-value">0°</strong>
+          </label>
+          <div class="toolbar-actions">
+            <button class="button rotate-preset-button" type="button">Rotate -15°</button>
+            <button class="button rotation-reset-button" type="button">Reset angle</button>
+            <button class="button export-html-button" type="button">Export interactive file</button>
+            <button class="button print-export-button" type="button">Print / PDF</button>
+          </div>
         </div>
         <section class="timeline-panel">
           <div class="timeline-header">
@@ -152,6 +173,23 @@ export async function createApp() {
               <div class="timeline-summary">No dated vertices</div>
               <button class="button timeline-clear-button" type="button" hidden>Clear range</button>
             </div>
+          </div>
+          <div class="timeline-controls">
+            <label class="field">
+              <span>Timeline scope</span>
+              <select class="timeline-scope-select">
+                <option value="all">All dated</option>
+                <option value="people">People only</option>
+                <option value="families">Families only</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>On release</span>
+              <select class="timeline-action-select">
+                <option value="fit">Spotlight</option>
+                <option value="dim">Highlight</option>
+              </select>
+            </label>
           </div>
           <canvas class="timeline-canvas"></canvas>
         </section>
@@ -193,16 +231,25 @@ export async function createApp() {
   const zoomOutButton = page.querySelector(".zoom-out-button");
   const expandButton = page.querySelector(".expand-button");
   const searchInput = page.querySelector(".search-input");
+  const searchScopeSelect = page.querySelector(".search-scope-select");
   const modeSelect = page.querySelector(".mode-select");
   const isolateToggle = page.querySelector(".isolate-toggle");
   const depthInput = page.querySelector(".depth-input");
   const depthValue = page.querySelector(".depth-value");
   const zoomSpeedInput = page.querySelector(".zoom-speed-input");
   const zoomSpeedValue = page.querySelector(".zoom-speed-value");
+  const rotationInput = page.querySelector(".rotation-input");
+  const rotationValue = page.querySelector(".rotation-value");
+  const rotatePresetButton = page.querySelector(".rotate-preset-button");
+  const rotationResetButton = page.querySelector(".rotation-reset-button");
+  const exportHtmlButton = page.querySelector(".export-html-button");
+  const printExportButton = page.querySelector(".print-export-button");
   const layersPill = page.querySelector(".layers-pill");
   const countsPill = page.querySelector(".counts-pill");
   const timelineSummary = page.querySelector(".timeline-summary");
   const timelineCanvas = page.querySelector(".timeline-canvas");
+  const timelineScopeSelect = page.querySelector(".timeline-scope-select");
+  const timelineActionSelect = page.querySelector(".timeline-action-select");
   const timelineClearButton = page.querySelector(".timeline-clear-button");
   const searchResults = page.querySelector(".search-results");
   const detailSummary = page.querySelector(".detail-summary");
@@ -223,6 +270,7 @@ export async function createApp() {
   let currentSearchResults = [];
   let namesExpanded = true;
   let pinnedHighlightIds = [];
+  let sourceLabel = "demo-tree";
 
   const renderer = new QuiltRenderer(canvas, {
     minimapCanvas,
@@ -285,7 +333,7 @@ export async function createApp() {
       return;
     }
 
-    const results = JSON.parse(engine.search_json(searchInput.value));
+    const results = JSON.parse(engine.search_json(searchInput.value, searchScopeSelect.value));
     renderSearchResults(results);
   }
 
@@ -317,7 +365,7 @@ export async function createApp() {
         <h3>Bring and slide</h3>
         <p>${
           details.kind === "person"
-            ? "Drag left from the selected person to navigate to parents, or drag right to navigate to children."
+            ? "Drag left from the selected person to navigate to parents and siblings, or drag right to navigate to spouses and children."
             : "Select a person to use bring-and-slide navigation."
         }</p>
       </div>
@@ -389,6 +437,12 @@ export async function createApp() {
   }
 
   function renderTimelineFocusDetails(focus) {
+    const scopeLabel =
+      focus.scope === "people"
+        ? "People"
+        : focus.scope === "families"
+          ? "Families"
+          : "All dated";
     detailSummary.innerHTML = `
       <div class="detail-card">
         <div class="detail-heading">
@@ -402,6 +456,7 @@ export async function createApp() {
           <div><span>Dated vertices</span><strong>${focus.matching_vertices_with_dates}</strong></div>
           <div><span>People</span><strong>${focus.matching_people}</strong></div>
           <div><span>Families</span><strong>${focus.matching_families}</strong></div>
+          <div><span>Scope</span><strong>${scopeLabel}</strong></div>
         </div>
       </div>
     `;
@@ -432,11 +487,17 @@ export async function createApp() {
     const activeText = summary.active_range
       ? `active ${summary.active_range[0]}-${summary.active_range[1]}`
       : "no active date focus";
+    const scopeText =
+      summary.scope === "people"
+        ? "people"
+        : summary.scope === "families"
+          ? "families"
+          : "all dated";
     const focusText = timelineFocus
-      ? `range ${timelineFocus.start_year}-${timelineFocus.end_year} · ${timelineFocus.matching_vertices_with_dates} dated vertices`
+      ? `range ${timelineFocus.start_year}-${timelineFocus.end_year} · ${timelineFocus.matching_vertices_with_dates} ${scopeText}`
       : activeText;
     timelineSummary.textContent =
-      `${summary.start_year}-${summary.end_year} · ${summary.total_vertices_with_dates} dated vertices · ${focusText}`;
+      `${summary.start_year}-${summary.end_year} · ${summary.total_vertices_with_dates} ${scopeText} · ${focusText}`;
     timelineClearButton.hidden = !timelineFocus;
 
     const rect = timelineCanvas.getBoundingClientRect();
@@ -571,7 +632,7 @@ export async function createApp() {
       renderer.setBringAndSlide({ left: null, right: null });
       renderer.setTimelineFocus(timelineFocus);
       renderer.setIsolation(isolateToggle.checked, Number(depthInput.value));
-      renderTimeline(JSON.parse(engine.timeline_json(JSON.stringify([]), null)));
+      renderTimeline(JSON.parse(engine.timeline_json(JSON.stringify([]), null, timelineScopeSelect.value)));
       if (timelineFocus) {
         renderTimelineFocusDetails(timelineFocus);
       } else {
@@ -589,7 +650,7 @@ export async function createApp() {
         engine.highlight_summary_json(JSON.stringify(highlightIds), modeSelect.value),
       );
       const timelineSummaryValue = JSON.parse(
-        engine.timeline_json(JSON.stringify(highlightIds), selectedId),
+        engine.timeline_json(JSON.stringify(highlightIds), selectedId, timelineScopeSelect.value),
       );
       const details = JSON.parse(engine.vertex_details_json(selectedId));
       const bringAndSlide =
@@ -644,6 +705,7 @@ export async function createApp() {
   }
 
   function loadDefaultGedcom() {
+    sourceLabel = "demo-tree";
     textarea.value = sampleGedcom;
     analyze();
   }
@@ -670,7 +732,9 @@ export async function createApp() {
 
     const normalizedStart = Math.min(startYear, endYear);
     const normalizedEnd = Math.max(startYear, endYear);
-    timelineFocus = JSON.parse(engine.timeline_focus_json(normalizedStart, normalizedEnd));
+    timelineFocus = JSON.parse(
+      engine.timeline_focus_json(normalizedStart, normalizedEnd, timelineScopeSelect.value),
+    );
     renderer.setTimelineFocus(timelineFocus);
     if (fit && timelineFocus.vertex_ids.length) {
       renderer.fitToVertexIds(timelineFocus.vertex_ids);
@@ -682,6 +746,62 @@ export async function createApp() {
     timelineFocus = null;
     renderer.setTimelineFocus(null);
     syncSelection();
+  }
+
+  function applyRotation(value, fit = false) {
+    const normalized = clamp(Number(value), -90, 90);
+    rotationInput.value = String(normalized);
+    rotationValue.textContent = formatAngleLabel(normalized);
+    renderer.setRotationDegrees(normalized);
+    if (fit && scene) {
+      renderer.fit();
+    }
+  }
+
+  function exportDocumentTitle() {
+    return `${sourceLabel || "geneaquilt"} snapshot`;
+  }
+
+  function exportFileStem() {
+    return sanitizeFileName(`${sourceLabel || "geneaquilt"}-snapshot`);
+  }
+
+  function downloadTextFile(fileName, content, type) {
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  }
+
+  function openHtmlDocument(content) {
+    const blob = new Blob([content], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const opened = window.open(url, "_blank", "noopener,noreferrer");
+    if (!opened) {
+      downloadTextFile(`${exportFileStem()}.html`, content, "text/html;charset=utf-8");
+    }
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  }
+
+  function exportInteractiveSnapshot(autoPrint = false) {
+    if (!scene) {
+      return;
+    }
+    const html = renderer.exportInteractiveHtml({
+      title: exportDocumentTitle(),
+      autoPrint,
+    });
+    if (!html) {
+      return;
+    }
+    if (autoPrint) {
+      openHtmlDocument(html);
+      return;
+    }
+    downloadTextFile(`${exportFileStem()}.html`, html, "text/html;charset=utf-8");
   }
 
   loadDefaultButton.addEventListener("click", loadDefaultGedcom);
@@ -698,6 +818,7 @@ export async function createApp() {
     expandButton.textContent = namesExpanded ? "Compact names" : "Expand names";
   });
   searchInput.addEventListener("input", refreshSearch);
+  searchScopeSelect.addEventListener("change", refreshSearch);
   modeSelect.addEventListener("change", syncSelection);
   pinHighlightButton.addEventListener("click", () => {
     if (!selectedId || pinnedHighlightIds.includes(selectedId)) {
@@ -714,6 +835,13 @@ export async function createApp() {
     syncSelection();
   });
   timelineClearButton.addEventListener("click", clearTimelineFocus);
+  timelineScopeSelect.addEventListener("change", () => {
+    if (timelineFocus) {
+      applyTimelineFocus(timelineFocus.start_year, timelineFocus.end_year, false);
+      return;
+    }
+    syncSelection();
+  });
   isolateToggle.addEventListener("change", () => {
     renderer.setIsolation(isolateToggle.checked, Number(depthInput.value));
     renderer.render();
@@ -727,11 +855,27 @@ export async function createApp() {
     zoomSpeedValue.textContent = sliderValueToZoomLabel(value);
     renderer.setZoomSpeed(sliderValueToZoomSpeed(value));
   });
+  rotationInput.addEventListener("input", () => {
+    applyRotation(Number(rotationInput.value));
+  });
+  rotatePresetButton.addEventListener("click", () => {
+    applyRotation(-15, true);
+  });
+  rotationResetButton.addEventListener("click", () => {
+    applyRotation(0, true);
+  });
+  exportHtmlButton.addEventListener("click", () => {
+    exportInteractiveSnapshot(false);
+  });
+  printExportButton.addEventListener("click", () => {
+    exportInteractiveSnapshot(true);
+  });
   fileInput.addEventListener("change", async (event) => {
     const file = event.target.files?.[0];
     if (!file) {
       return;
     }
+    sourceLabel = file.name.replace(/\.[^.]+$/, "") || "geneaquilt";
     textarea.value = await file.text();
     analyze();
   });
@@ -767,7 +911,11 @@ export async function createApp() {
     timelineCanvas.releasePointerCapture(event.pointerId);
     const year = timelineYearAtOffset(event.offsetX);
     const endYear = year ?? timelineBrush.anchorYear;
-    applyTimelineFocus(timelineBrush.anchorYear, endYear, true);
+    applyTimelineFocus(
+      timelineBrush.anchorYear,
+      endYear,
+      timelineActionSelect.value === "fit",
+    );
     timelineBrush = null;
   });
   timelineCanvas.addEventListener("pointercancel", () => {
@@ -778,6 +926,7 @@ export async function createApp() {
   renderEmptyDetails();
   renderHighlightStack();
   renderTimeline(null);
+  applyRotation(0);
   return page;
 }
 
@@ -809,6 +958,26 @@ function sliderValueToZoomLabel(value) {
   return "Balanced";
 }
 
+function formatAngleLabel(value) {
+  const rounded = Math.round(value);
+  if (rounded === 0) {
+    return "0°";
+  }
+  return rounded > 0 ? `+${rounded}°` : `${rounded}°`;
+}
+
+function sanitizeFileName(value) {
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "geneaquilt";
+}
+
 function clamp01(value) {
   return Math.min(1, Math.max(0, value));
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
 }

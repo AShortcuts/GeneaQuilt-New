@@ -158,6 +158,7 @@ struct VertexDetails {
 struct BringAndSlideCandidate {
     id: String,
     label: String,
+    relation: String,
     layer: usize,
     order: usize,
 }
@@ -182,6 +183,7 @@ struct TimelineBin {
 
 #[derive(Debug, Clone, Serialize)]
 struct TimelineSummary {
+    scope: String,
     start_year: i32,
     end_year: i32,
     total_vertices_with_dates: usize,
@@ -193,6 +195,7 @@ struct TimelineSummary {
 
 #[derive(Debug, Clone, Serialize)]
 struct TimelineFocusSummary {
+    scope: String,
     start_year: i32,
     end_year: i32,
     matching_vertices_with_dates: usize,
@@ -367,8 +370,9 @@ impl GeneaQuiltEngine {
         self.interaction_json(external_id, mode)
     }
 
-    pub fn search_json(&self, query: &str) -> String {
+    pub fn search_json(&self, query: &str, scope: &str) -> Result<String, JsValue> {
         let orders = order_lookup(&self.layout);
+        let scope = parse_search_scope(scope)?;
         let terms = query
             .split_whitespace()
             .map(|term| term.trim().to_lowercase())
@@ -382,7 +386,7 @@ impl GeneaQuiltEngine {
                 let id = self.graph.vertex_external_id(vertex_id)?;
                 let label = self.graph.vertex_display_label(vertex_id)?;
                 let kind = kind_name_from_graph(&self.graph, vertex_id)?;
-                let haystack = search_haystack(&self.graph, vertex_id, id, &label);
+                let haystack = search_haystack(&self.graph, vertex_id, id, &label, scope);
                 if !terms.iter().all(|term| haystack.contains(term)) {
                     return None;
                 }
@@ -399,7 +403,7 @@ impl GeneaQuiltEngine {
         results.sort_by(|left, right| left.label.cmp(&right.label).then(left.id.cmp(&right.id)));
         results.truncate(24);
 
-        serde_json::to_string(&results).expect("search results should serialize")
+        Ok(serde_json::to_string(&results).expect("search results should serialize"))
     }
 
     pub fn vertex_details_json(&self, external_id: &str) -> Result<String, JsValue> {
@@ -489,17 +493,40 @@ impl GeneaQuiltEngine {
 
         let orders = order_lookup(&self.layout);
         let candidate_ids = match direction {
-            "left" => self.graph.person_parent_ids(selected),
-            "right" => self.graph.person_child_ids(selected),
+            "left" => self
+                .graph
+                .person_parent_ids(selected)
+                .into_iter()
+                .map(|vertex_id| (vertex_id, "parent"))
+                .chain(
+                    self.graph
+                        .person_sibling_ids(selected)
+                        .into_iter()
+                        .map(|vertex_id| (vertex_id, "sibling")),
+                )
+                .collect::<Vec<_>>(),
+            "right" => self
+                .graph
+                .person_spouse_ids(selected)
+                .into_iter()
+                .map(|vertex_id| (vertex_id, "spouse"))
+                .chain(
+                    self.graph
+                        .person_child_ids(selected)
+                        .into_iter()
+                        .map(|vertex_id| (vertex_id, "child")),
+                )
+                .collect::<Vec<_>>(),
             _ => return Err(JsValue::from_str("invalid bring-and-slide direction")),
         };
 
         let mut candidates = candidate_ids
             .into_iter()
-            .filter_map(|vertex_id| {
+            .filter_map(|(vertex_id, relation)| {
                 Some(BringAndSlideCandidate {
                     id: self.graph.vertex_external_id(vertex_id)?.to_string(),
                     label: self.graph.vertex_display_label(vertex_id)?,
+                    relation: relation.to_string(),
                     layer: self.layout.layers[vertex_id.0],
                     order: orders[vertex_id.0],
                 })
@@ -507,10 +534,13 @@ impl GeneaQuiltEngine {
             .collect::<Vec<_>>();
 
         candidates.sort_by(|left, right| {
-            left.order
+            relation_rank(&left.relation)
+                .cmp(&relation_rank(&right.relation))
+                .then(
+                    left.order
                 .cmp(&right.order)
                 .then(left.layer.cmp(&right.layer))
-                .then(left.label.cmp(&right.label))
+                .then(left.label.cmp(&right.label)))
         });
 
         let summary = BringAndSlideSummary {
@@ -537,14 +567,23 @@ impl GeneaQuiltEngine {
         &self,
         external_ids_json: &str,
         selected_id: Option<String>,
+        scope: &str,
     ) -> Result<String, JsValue> {
         let external_ids = parse_external_ids_json(external_ids_json)?;
-        let summary = build_timeline_summary(&self.graph, &external_ids, selected_id.as_deref())?;
+        let scope = parse_timeline_scope(scope)?;
+        let summary =
+            build_timeline_summary(&self.graph, &external_ids, selected_id.as_deref(), scope)?;
         Ok(serde_json::to_string(&summary).expect("timeline summary should serialize"))
     }
 
-    pub fn timeline_focus_json(&self, start_year: i32, end_year: i32) -> Result<String, JsValue> {
-        let summary = build_timeline_focus_summary(&self.graph, start_year, end_year)?;
+    pub fn timeline_focus_json(
+        &self,
+        start_year: i32,
+        end_year: i32,
+        scope: &str,
+    ) -> Result<String, JsValue> {
+        let scope = parse_timeline_scope(scope)?;
+        let summary = build_timeline_focus_summary(&self.graph, start_year, end_year, scope)?;
         Ok(serde_json::to_string(&summary).expect("timeline focus summary should serialize"))
     }
 }
@@ -588,8 +627,19 @@ fn search_haystack(
     vertex_id: geneaquilt_core::VertexId,
     id: &str,
     label: &str,
+    scope: SearchScope,
 ) -> String {
-    let mut parts = vec![id.to_lowercase(), label.to_lowercase()];
+    let mut parts = Vec::<String>::new();
+
+    if matches!(scope, SearchScope::All | SearchScope::Ids) {
+        parts.push(id.to_lowercase());
+    }
+    if matches!(scope, SearchScope::All | SearchScope::Names) {
+        parts.push(label.to_lowercase());
+    }
+    if !matches!(scope, SearchScope::Attributes | SearchScope::All) {
+        return parts.join(" ");
+    }
 
     match graph.vertex(vertex_id) {
         Some(VertexRecord::Person(person)) => {
@@ -608,6 +658,50 @@ fn search_haystack(
     }
 
     parts.join(" ")
+}
+
+#[derive(Clone, Copy)]
+enum SearchScope {
+    All,
+    Names,
+    Ids,
+    Attributes,
+}
+
+#[derive(Clone, Copy)]
+enum TimelineScope {
+    All,
+    People,
+    Families,
+}
+
+fn parse_search_scope(scope: &str) -> Result<SearchScope, JsValue> {
+    match scope {
+        "" | "all" => Ok(SearchScope::All),
+        "names" => Ok(SearchScope::Names),
+        "ids" => Ok(SearchScope::Ids),
+        "attributes" => Ok(SearchScope::Attributes),
+        _ => Err(JsValue::from_str("invalid search scope")),
+    }
+}
+
+fn parse_timeline_scope(scope: &str) -> Result<TimelineScope, JsValue> {
+    match scope {
+        "" | "all" => Ok(TimelineScope::All),
+        "people" => Ok(TimelineScope::People),
+        "families" => Ok(TimelineScope::Families),
+        _ => Err(JsValue::from_str("invalid timeline scope")),
+    }
+}
+
+fn relation_rank(relation: &str) -> usize {
+    match relation {
+        "parent" => 0,
+        "sibling" => 1,
+        "spouse" => 0,
+        "child" => 1,
+        _ => 2,
+    }
 }
 
 fn ids_to_labels(
@@ -773,15 +867,21 @@ fn build_timeline_summary(
     graph: &GeneaGraph,
     active_external_ids: &[String],
     selected_id: Option<&str>,
+    scope: TimelineScope,
 ) -> Result<TimelineSummary, JsValue> {
     let dated_vertices = graph
         .vertex_ids()
         .filter_map(|vertex_id| {
-            vertex_date_range(graph, vertex_id).map(|range| (vertex_id, graph.is_person(vertex_id), range))
+            let is_person = graph.is_person(vertex_id);
+            if !timeline_scope_matches(scope, is_person) {
+                return None;
+            }
+            vertex_date_range(graph, vertex_id).map(|range| (vertex_id, is_person, range))
         })
         .collect::<Vec<_>>();
     let Some(bounds) = union_ranges(dated_vertices.iter().map(|(_, _, range)| range)) else {
         return Ok(TimelineSummary {
+            scope: timeline_scope_name(scope).to_string(),
             start_year: 0,
             end_year: 0,
             total_vertices_with_dates: 0,
@@ -844,6 +944,7 @@ fn build_timeline_summary(
         .collect::<Vec<_>>();
 
     Ok(TimelineSummary {
+        scope: timeline_scope_name(scope).to_string(),
         start_year: bounds.start_year,
         end_year: bounds.end_year,
         total_vertices_with_dates: dated_vertices.len(),
@@ -858,6 +959,7 @@ fn build_timeline_focus_summary(
     graph: &GeneaGraph,
     start_year: i32,
     end_year: i32,
+    scope: TimelineScope,
 ) -> Result<TimelineFocusSummary, JsValue> {
     if start_year > end_year {
         return Err(JsValue::from_str("timeline focus range is invalid"));
@@ -868,6 +970,10 @@ fn build_timeline_focus_summary(
     let mut matching_families = 0usize;
 
     for vertex_id in graph.vertex_ids() {
+        let is_person = graph.is_person(vertex_id);
+        if !timeline_scope_matches(scope, is_person) {
+            continue;
+        }
         let Some(range) = vertex_date_range(graph, vertex_id) else {
             continue;
         };
@@ -889,6 +995,7 @@ fn build_timeline_focus_summary(
     vertex_ids.sort();
 
     Ok(TimelineFocusSummary {
+        scope: timeline_scope_name(scope).to_string(),
         start_year,
         end_year,
         matching_vertices_with_dates: vertex_ids.len(),
@@ -896,6 +1003,22 @@ fn build_timeline_focus_summary(
         matching_families,
         vertex_ids,
     })
+}
+
+fn timeline_scope_matches(scope: TimelineScope, is_person: bool) -> bool {
+    match scope {
+        TimelineScope::All => true,
+        TimelineScope::People => is_person,
+        TimelineScope::Families => !is_person,
+    }
+}
+
+fn timeline_scope_name(scope: TimelineScope) -> &'static str {
+    match scope {
+        TimelineScope::All => "all",
+        TimelineScope::People => "people",
+        TimelineScope::Families => "families",
+    }
 }
 
 fn collect_connector_highlights(
@@ -1109,7 +1232,7 @@ fn mode_name(mode: HighlightMode) -> &'static str {
 mod tests {
     use super::{
         TraversalDirection, build_highlight_summary, build_timeline_focus_summary,
-        build_timeline_summary,
+        build_timeline_summary, TimelineScope,
         choose_unique_connector_edge,
         collect_connector_highlights,
     };
@@ -1284,6 +1407,8 @@ mod tests {
 
         assert!(left.contains("Parent One"));
         assert!(left.contains("Parent Two"));
+        assert!(left.contains("parent"));
+        assert!(right.contains("spouse"));
         assert!(right.contains("Grandchild One"));
     }
 
@@ -1363,9 +1488,15 @@ mod tests {
 "#;
 
         let graph = parse_gedcom(gedcom).expect("gedcom should parse");
-        let summary = build_timeline_summary(&graph, &["@I3@".to_string()], Some("@I3@"))
+        let summary = build_timeline_summary(
+            &graph,
+            &["@I3@".to_string()],
+            Some("@I3@"),
+            TimelineScope::All,
+        )
             .expect("timeline summary should build");
 
+        assert_eq!(summary.scope, "all");
         assert_eq!(summary.start_year, 1900);
         assert_eq!(summary.end_year, 1930);
         assert_eq!(summary.selected_range, Some((1930, 1930)));
@@ -1400,9 +1531,10 @@ mod tests {
 "#;
 
         let graph = parse_gedcom(gedcom).expect("gedcom should parse");
-        let summary =
-            build_timeline_focus_summary(&graph, 1910, 1925).expect("timeline focus should build");
+        let summary = build_timeline_focus_summary(&graph, 1910, 1925, TimelineScope::All)
+            .expect("timeline focus should build");
 
+        assert_eq!(summary.scope, "all");
         assert_eq!(summary.start_year, 1910);
         assert_eq!(summary.end_year, 1925);
         assert_eq!(summary.matching_vertices_with_dates, 1);
@@ -1427,7 +1559,46 @@ mod tests {
         order_layers(&graph, &mut layout);
         let engine = super::GeneaQuiltEngine { graph, layout };
 
-        assert!(engine.search_json("BIRT 3400").contains("@I1@"));
-        assert!(engine.search_json("Esther SEX").contains("@I1@"));
+        assert!(
+            engine
+                .search_json("BIRT 3400", "attributes")
+                .expect("attribute search should serialize")
+                .contains("@I1@")
+        );
+        assert!(
+            engine
+                .search_json("Esther SEX", "all")
+                .expect("combined search should serialize")
+                .contains("@I1@")
+        );
+    }
+
+    #[test]
+    fn timeline_scope_filters_people_only() {
+        let gedcom = r#"
+0 @I1@ INDI
+1 NAME Parent /One/
+1 BIRT
+2 DATE 1900
+1 FAMS @F1@
+0 @I2@ INDI
+1 NAME Parent /Two/
+1 BIRT
+2 DATE 1904
+1 FAMS @F1@
+0 @F1@ FAM
+1 MARR
+2 DATE 1920
+1 HUSB @I1@
+1 WIFE @I2@
+"#;
+
+        let graph = parse_gedcom(gedcom).expect("gedcom should parse");
+        let summary = build_timeline_focus_summary(&graph, 1890, 1950, TimelineScope::People)
+            .expect("timeline focus should build");
+
+        assert_eq!(summary.scope, "people");
+        assert_eq!(summary.matching_people, 2);
+        assert_eq!(summary.matching_families, 0);
     }
 }

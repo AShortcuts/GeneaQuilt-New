@@ -342,6 +342,26 @@ impl GeneaGraph {
         children.into_iter().map(VertexId).collect::<Vec<_>>()
     }
 
+    pub fn person_sibling_ids(&self, id: VertexId) -> Vec<VertexId> {
+        if !self.is_person(id) {
+            return Vec::new();
+        }
+
+        let mut siblings = BTreeSet::<usize>::new();
+        for family in self.ascendants(id) {
+            if !self.is_family(family) {
+                continue;
+            }
+            for sibling in self.descendants(family) {
+                if sibling != id && self.is_person(sibling) {
+                    siblings.insert(sibling.0);
+                }
+            }
+        }
+
+        siblings.into_iter().map(VertexId).collect::<Vec<_>>()
+    }
+
     pub fn person_parent_family_ids(&self, id: VertexId) -> Vec<VertexId> {
         if !self.is_person(id) {
             return Vec::new();
@@ -396,5 +416,36 @@ mod tests {
         assert_eq!(graph.person_parent_ids(child).len(), 2);
         assert_eq!(graph.person_spouse_ids(parent_one).len(), 1);
         assert_eq!(graph.person_child_ids(parent_one).len(), 1);
+        assert_eq!(graph.person_sibling_ids(child).len(), 0);
+    }
+
+    #[test]
+    fn derives_person_siblings() {
+        let gedcom = r#"
+0 @I1@ INDI
+1 NAME Parent /One/
+1 FAMS @F1@
+0 @I2@ INDI
+1 NAME Parent /Two/
+1 FAMS @F1@
+0 @I3@ INDI
+1 NAME Child /One/
+1 FAMC @F1@
+0 @I4@ INDI
+1 NAME Child /Two/
+1 FAMC @F1@
+0 @F1@ FAM
+1 HUSB @I1@
+1 WIFE @I2@
+1 CHIL @I3@
+1 CHIL @I4@
+"#;
+
+        let graph = parse_gedcom(gedcom).expect("gedcom should parse");
+        let child_one = graph
+            .vertex_id_by_external_id("@I3@")
+            .expect("child should exist");
+
+        assert_eq!(graph.person_sibling_ids(child_one).len(), 1);
     }
 }

@@ -318,6 +318,13 @@ textarea {
   border: 1px solid var(--line);
 }
 
+.timeline-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
 .timeline-header {
   display: flex;
   justify-content: space-between;
@@ -375,6 +382,12 @@ textarea {
   font-size: 0.88rem;
 }
 
+.field-note {
+  color: rgba(95, 104, 95, 0.84);
+  font-size: 0.76rem;
+  line-height: 1.3;
+}
+
 .field input,
 .field select {
   min-width: 0;
@@ -391,6 +404,13 @@ textarea {
   align-items: center;
   gap: 10px;
   min-width: 230px;
+}
+
+.toolbar-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
 }
 
 .toggle {
@@ -651,7 +671,8 @@ textarea {
 
   .toolbar,
   .row-actions,
-  .detail-actions {
+  .detail-actions,
+  .toolbar-actions {
     flex-direction: column;
   }
 
