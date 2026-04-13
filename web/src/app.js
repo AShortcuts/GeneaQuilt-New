@@ -90,6 +90,10 @@ export async function createApp() {
           <textarea spellcheck="false"></textarea>
         </div>
         <div class="row-actions">
+          <button class="button load-default-button" type="button">
+            <span>Load default GEDCOM</span>
+            <strong>Built-in demo tree</strong>
+          </button>
           <button class="button button-primary analyze-button">Build quilt</button>
           <button class="button fit-button" type="button">Fit view</button>
           <button class="button zoom-in-button" type="button">Zoom in</button>
@@ -179,6 +183,7 @@ export async function createApp() {
   const fileInput = page.querySelector('input[type="file"]');
   const sourceToggle = page.querySelector(".source-toggle");
   const sourceBody = page.querySelector(".source-body");
+  const loadDefaultButton = page.querySelector(".load-default-button");
   const analyzeButton = page.querySelector(".analyze-button");
   const fitButton = page.querySelector(".fit-button");
   const zoomInButton = page.querySelector(".zoom-in-button");
@@ -205,8 +210,6 @@ export async function createApp() {
   const highlightStack = page.querySelector(".highlight-stack");
   const canvas = page.querySelector(".quilt-canvas");
   const minimapCanvas = page.querySelector(".minimap-canvas");
-
-  textarea.value = sampleGedcom;
 
   let engine = null;
   let scene = null;
@@ -263,6 +266,12 @@ export async function createApp() {
       });
       searchResults.append(button);
     }
+  }
+
+  function renderIdleSearchState() {
+    currentSearchResults = [];
+    renderer.setSearchMatches([]);
+    searchResults.innerHTML = `<div class="empty-state">Load a GEDCOM to search and inspect the quilt.</div>`;
   }
 
   function refreshSearch() {
@@ -572,6 +581,12 @@ export async function createApp() {
     }
   }
 
+  function loadDefaultGedcom() {
+    textarea.value = sampleGedcom;
+    analyze();
+  }
+
+  loadDefaultButton.addEventListener("click", loadDefaultGedcom);
   analyzeButton.addEventListener("click", analyze);
   sourceToggle.addEventListener("click", () => {
     setSourceExpanded(sourceBody.hidden);
@@ -620,7 +635,10 @@ export async function createApp() {
     analyze();
   });
 
-  analyze();
+  renderIdleSearchState();
+  renderEmptyDetails();
+  renderHighlightStack();
+  renderTimeline(null);
   return page;
 }
 

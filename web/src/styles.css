@@ -208,6 +208,37 @@ select {
   color: white;
 }
 
+.load-default-button {
+  min-width: 220px;
+  padding: 12px 18px;
+  border-color: rgba(154, 93, 22, 0.22);
+  background:
+    linear-gradient(135deg, rgba(154, 93, 22, 0.98), rgba(192, 121, 33, 0.95)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0));
+  color: white;
+  box-shadow: 0 14px 28px rgba(154, 93, 22, 0.2);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.load-default-button span,
+.load-default-button strong {
+  display: block;
+  line-height: 1.15;
+}
+
+.load-default-button span {
+  font-weight: 700;
+}
+
+.load-default-button strong {
+  font-size: 0.73rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 249, 239, 0.82);
+ }
+
 .button-file {
   position: relative;
   overflow: hidden;
