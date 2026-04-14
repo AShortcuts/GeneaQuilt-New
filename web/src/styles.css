@@ -9,12 +9,57 @@
   --ochre: #9a5d16;
   --ochre-soft: rgba(154, 93, 22, 0.12);
   --shadow: 0 28px 90px rgba(31, 41, 48, 0.1);
+  --page-glow-a: rgba(11, 110, 116, 0.16);
+  --page-glow-b: rgba(154, 93, 22, 0.14);
+  --page-bg-top: #f8f1e6;
+  --page-bg-mid: #f2e8d7;
+  --page-bg-bottom: #f5ede2;
+  --surface: rgba(255, 249, 239, 0.72);
+  --surface-strong: rgba(255, 255, 255, 0.62);
+  --surface-soft: rgba(255, 255, 255, 0.48);
+  --surface-soft-2: rgba(255, 255, 255, 0.52);
+  --control-bg: rgba(255, 251, 245, 0.78);
+  --button-bg: rgba(255, 255, 255, 0.72);
+  --toggle-bg: rgba(255, 255, 255, 0.58);
+  --match-bg: rgba(255, 255, 255, 0.5);
+  --canvas-bg-top: rgba(255, 255, 255, 0.72);
+  --canvas-bg-bottom: rgba(247, 240, 228, 0.8);
+  --minimap-bg: rgba(255, 249, 239, 0.88);
   color: var(--ink);
   font-family: Georgia, "Iowan Old Style", "Times New Roman", serif;
   background:
-    radial-gradient(circle at 15% 10%, rgba(11, 110, 116, 0.16), transparent 28%),
-    radial-gradient(circle at 80% 18%, rgba(154, 93, 22, 0.14), transparent 32%),
-    linear-gradient(180deg, #f8f1e6, #f2e8d7 48%, #f5ede2);
+    radial-gradient(circle at 15% 10%, var(--page-glow-a), transparent 28%),
+    radial-gradient(circle at 80% 18%, var(--page-glow-b), transparent 32%),
+    linear-gradient(180deg, var(--page-bg-top), var(--page-bg-mid) 48%, var(--page-bg-bottom));
+}
+
+html[data-theme="dark"] {
+  --paper: #151c24;
+  --paper-strong: #1b2430;
+  --ink: #e6edf4;
+  --muted: #a0adb8;
+  --line: rgba(227, 234, 242, 0.14);
+  --accent: #57b4bd;
+  --accent-soft: rgba(87, 180, 189, 0.16);
+  --ochre: #d69a53;
+  --ochre-soft: rgba(214, 154, 83, 0.16);
+  --shadow: 0 28px 90px rgba(3, 9, 16, 0.45);
+  --page-glow-a: rgba(35, 124, 135, 0.22);
+  --page-glow-b: rgba(184, 112, 38, 0.18);
+  --page-bg-top: #0c131a;
+  --page-bg-mid: #121a22;
+  --page-bg-bottom: #151d26;
+  --surface: rgba(18, 25, 33, 0.8);
+  --surface-strong: rgba(27, 36, 48, 0.9);
+  --surface-soft: rgba(24, 33, 44, 0.82);
+  --surface-soft-2: rgba(21, 30, 40, 0.86);
+  --control-bg: rgba(14, 22, 30, 0.92);
+  --button-bg: rgba(24, 33, 44, 0.9);
+  --toggle-bg: rgba(26, 34, 45, 0.88);
+  --match-bg: rgba(23, 32, 42, 0.86);
+  --canvas-bg-top: rgba(25, 34, 44, 0.96);
+  --canvas-bg-bottom: rgba(16, 24, 32, 0.94);
+  --minimap-bg: rgba(17, 24, 32, 0.92);
 }
 
 * {
@@ -55,7 +100,7 @@ button,
 textarea,
 input,
 select {
-  background: rgba(255, 251, 245, 0.78);
+  background: var(--control-bg);
   color: var(--ink);
 }
 
@@ -67,7 +112,7 @@ select {
 
 .hero,
 .panel {
-  background: rgba(255, 249, 239, 0.72);
+  background: var(--surface);
   backdrop-filter: blur(12px);
   border: 1px solid var(--line);
   box-shadow: var(--shadow);
@@ -77,6 +122,14 @@ select {
 .hero {
   padding: 34px;
   animation: rise-in 0.55s ease both;
+}
+
+.hero-topline {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 18px;
 }
 
 .hero-grid {
@@ -140,7 +193,7 @@ select {
 .search-hit,
 .empty-state,
 .error-card {
-  background: rgba(255, 255, 255, 0.62);
+  background: var(--surface-strong);
   border: 1px solid var(--line);
   border-radius: 20px;
 }
@@ -197,7 +250,7 @@ select {
   justify-content: center;
   padding: 11px 16px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--button-bg);
   color: var(--ink);
   text-decoration: none;
 }
@@ -266,7 +319,7 @@ select {
   gap: 14px;
   padding: 13px 16px;
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.58);
+  background: var(--toggle-bg);
   color: var(--ink);
 }
 
@@ -306,7 +359,7 @@ textarea {
   margin-bottom: 14px;
   padding: 14px;
   border-radius: 22px;
-  background: rgba(255, 255, 255, 0.48);
+  background: var(--surface-soft);
   border: 1px solid var(--line);
 }
 
@@ -314,7 +367,7 @@ textarea {
   margin-bottom: 14px;
   padding: 12px 14px 10px;
   border-radius: 22px;
-  background: rgba(255, 255, 255, 0.52);
+  background: var(--surface-soft-2);
   border: 1px solid var(--line);
 }
 
@@ -359,14 +412,14 @@ textarea {
   height: 92px;
   display: block;
   border-radius: 14px;
-  background: rgba(255, 252, 247, 0.78);
+  background: var(--control-bg);
   cursor: crosshair;
 }
 
 .timeline-clear-button {
   padding: 8px 12px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.84);
+  background: var(--button-bg);
   font-size: 0.82rem;
 }
 
@@ -423,8 +476,8 @@ textarea {
 .stage-shell {
   position: relative;
   display: block;
-  min-height: 720px;
-  flex: 1;
+  height: clamp(420px, 62vh, 660px);
+  min-height: 0;
 }
 
 .quilt-canvas,
@@ -439,7 +492,7 @@ textarea {
   height: 100%;
   border-radius: 24px;
   border: 1px solid var(--line);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(247, 240, 228, 0.8));
+  background: linear-gradient(180deg, var(--canvas-bg-top), var(--canvas-bg-bottom));
   touch-action: none;
 }
 
@@ -451,7 +504,7 @@ textarea {
   padding: 10px;
   border-radius: 18px;
   border: 1px solid var(--line);
-  background: rgba(255, 249, 239, 0.88);
+  background: var(--minimap-bg);
   box-shadow: 0 20px 50px rgba(31, 41, 48, 0.12);
   backdrop-filter: blur(10px);
 }
@@ -481,7 +534,7 @@ textarea {
   padding: 16px;
   border-radius: 24px;
   border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.5);
+  background: var(--match-bg);
 }
 
 .detail-actions {
@@ -505,17 +558,17 @@ textarea {
   padding: 12px 14px;
   border-radius: 18px;
   border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.58);
+  background: var(--toggle-bg);
 }
 
 .highlight-chip.is-primary {
-  background: rgba(255, 245, 241, 0.92);
+  background: color-mix(in srgb, var(--button-bg) 76%, rgba(215, 59, 38, 0.28));
 }
 
 .highlight-chip button {
   border-radius: 999px;
   padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.82);
+  background: var(--button-bg);
 }
 
 .highlight-chip button:disabled {
@@ -597,7 +650,7 @@ textarea {
 }
 
 .relation-block-subtle {
-  background: rgba(255, 255, 255, 0.44);
+  background: var(--surface-soft);
 }
 
 .detail-heading {
@@ -669,6 +722,11 @@ textarea {
     grid-template-columns: 1fr;
   }
 
+  .hero-topline {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
   .toolbar,
   .row-actions,
   .detail-actions,
@@ -677,7 +735,7 @@ textarea {
   }
 
   .stage-shell {
-    min-height: 560px;
+    height: clamp(360px, 56vh, 520px);
   }
 
   .minimap-shell {

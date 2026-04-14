@@ -7,7 +7,7 @@ use geneaquilt_core::{
     HighlightMode, SelectionState,
     timeline::{DateRange, accumulate_year_range, union_ranges},
 };
-use geneaquilt_layout::{LayoutState, assign_layers, order_layers};
+use geneaquilt_layout::{LayoutState, assign_layers, assign_layers_v2, order_layers};
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
@@ -204,6 +204,12 @@ struct TimelineFocusSummary {
     vertex_ids: Vec<String>,
 }
 
+#[derive(Clone, Copy)]
+enum RankerStrategy {
+    Original,
+    V2,
+}
+
 fn engine_status() -> EngineStatus {
     let graph = GeneaGraph::new();
 
@@ -230,8 +236,15 @@ pub struct GeneaQuiltEngine {
 impl GeneaQuiltEngine {
     #[wasm_bindgen(constructor)]
     pub fn new(source: &str) -> Result<GeneaQuiltEngine, JsValue> {
+        Self::with_ranker(source, "original")
+    }
+
+    pub fn with_ranker(source: &str, ranker: &str) -> Result<GeneaQuiltEngine, JsValue> {
         let graph = parse_gedcom(source).map_err(|error| JsValue::from_str(&error.to_string()))?;
-        let mut layout = assign_layers(&graph);
+        let mut layout = match parse_ranker(ranker).map_err(JsValue::from_str)? {
+            RankerStrategy::Original => assign_layers(&graph),
+            RankerStrategy::V2 => assign_layers_v2(&graph),
+        };
         order_layers(&graph, &mut layout);
 
         Ok(Self { graph, layout })
@@ -701,6 +714,14 @@ fn relation_rank(relation: &str) -> usize {
         "spouse" => 0,
         "child" => 1,
         _ => 2,
+    }
+}
+
+fn parse_ranker(ranker: &str) -> Result<RankerStrategy, &'static str> {
+    match ranker {
+        "" | "original" => Ok(RankerStrategy::Original),
+        "v2" => Ok(RankerStrategy::V2),
+        _ => Err("invalid ranker"),
     }
 }
 
@@ -1238,6 +1259,33 @@ mod tests {
     };
     use geneaquilt_core::{HighlightMode, parse_gedcom};
     use geneaquilt_layout::{assign_layers, order_layers};
+
+    #[test]
+    fn engine_accepts_ranker_selection() {
+        let gedcom = r#"
+0 @I1@ INDI
+1 NAME Parent /One/
+1 FAMS @F1@
+0 @I2@ INDI
+1 NAME Parent /Two/
+1 FAMS @F1@
+0 @I3@ INDI
+1 NAME Child /One/
+1 FAMC @F1@
+0 @F1@ FAM
+1 HUSB @I1@
+1 WIFE @I2@
+1 CHIL @I3@
+"#;
+
+        let original = super::GeneaQuiltEngine::with_ranker(gedcom, "original")
+            .expect("original ranker should build");
+        let v2 = super::GeneaQuiltEngine::with_ranker(gedcom, "v2")
+            .expect("v2 ranker should build");
+
+        assert_eq!(original.layout.layers.len(), v2.layout.layers.len());
+        assert!(super::parse_ranker("bogus").is_err());
+    }
 
     #[test]
     fn family_predecessor_highlights_only_one_terminal_connector() {

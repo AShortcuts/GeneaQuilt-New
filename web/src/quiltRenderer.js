@@ -17,10 +17,8 @@ const DEFAULT_WHEEL_ZOOM_SPEED = 0.00115;
 const MINIMAP_PADDING = 10;
 const SLIDE_DISTANCE = 88;
 const SLIDE_COMMIT_THRESHOLD = 0.98;
+const LINE_HIT_SLOP_PX = 10;
 const HIGHLIGHT_COLORS = ["#d73b26", "#0b6e74", "#3555fa", "#9a5d16"];
-const FAMILY_BASE_FILL = "rgba(248, 245, 235, 0.98)";
-const FAMILY_BASE_STROKE = "rgba(124, 111, 83, 0.92)";
-const FAMILY_BASE_TEXT = "#2a261f";
 
 export class QuiltRenderer {
   constructor(canvas, { minimapCanvas = null, onSelect = null } = {}) {
@@ -52,6 +50,8 @@ export class QuiltRenderer {
     this.isolateDepth = 3;
     this.expandedNames = true;
     this.zoomSpeed = DEFAULT_WHEEL_ZOOM_SPEED;
+    this.theme = "light";
+    this.palette = rendererPalette("light");
     this.rotationDegrees = 0;
     this.rotationRadians = 0;
     this.scale = 1;
@@ -309,6 +309,12 @@ export class QuiltRenderer {
     this.zoomSpeed = speed;
   }
 
+  setTheme(theme) {
+    this.theme = theme === "dark" ? "dark" : "light";
+    this.palette = rendererPalette(this.theme);
+    this.render();
+  }
+
   setRotationDegrees(degrees) {
     const next = clamp(Number.isFinite(degrees) ? degrees : 0, -90, 90);
     this.rotationDegrees = next;
@@ -426,7 +432,39 @@ export class QuiltRenderer {
       }
     }
 
+    const lineHit = this.hitTestLines(screenX, screenY, transform);
+    if (lineHit) {
+      return lineHit;
+    }
+
     return null;
+  }
+
+  hitTestLines(screenX, screenY, transform) {
+    const point = { x: screenX, y: screenY };
+    let best = null;
+
+    for (let index = this.vertexRects.length - 1; index >= 0; index -= 1) {
+      const vertex = this.vertexRects[index];
+      if (!isVertexVisible(vertex, this)) {
+        continue;
+      }
+
+      const segments = buildVertexLineSegments(vertex, this.geometry.connectionRanges);
+      for (const segment of segments) {
+        const start = worldToScreenPoint(segment.start, transform);
+        const end = worldToScreenPoint(segment.end, transform);
+        const distance = pointToSegmentDistance(point, start, end);
+        if (distance > LINE_HIT_SLOP_PX) {
+          continue;
+        }
+        if (!best || distance < best.distance) {
+          best = { vertex, distance };
+        }
+      }
+    }
+
+    return best?.vertex ?? null;
   }
 
   render() {
@@ -437,14 +475,14 @@ export class QuiltRenderer {
       return;
     }
 
+    ctx.__geneaquiltPalette = this.palette;
     drawPaper(ctx, this.width, this.height);
 
     ctx.save();
     applySceneTransform(ctx, this.sceneTransform());
 
     drawGenerationBlocks(ctx, this.geometry, this);
-    const ranges = buildConnectionRanges(this.geometry.edges);
-    drawGrid(ctx, this.geometry, this, ranges);
+    drawGrid(ctx, this.geometry, this, this.geometry.connectionRanges);
     drawHighlightPaths(ctx, this.geometry, this);
     drawEdges(ctx, this.geometry, this);
     drawVertices(ctx, this.geometry, this);
@@ -497,8 +535,8 @@ export class QuiltRenderer {
     };
 
     ctx.save();
-    ctx.fillStyle = "rgba(255, 251, 244, 0.92)";
-    ctx.strokeStyle = "rgba(29, 37, 45, 0.14)";
+    ctx.fillStyle = this.palette.minimapBackground;
+    ctx.strokeStyle = this.palette.minimapBorder;
     ctx.lineWidth = 1;
     roundRect(ctx, 0.5, 0.5, this.minimapWidth - 1, this.minimapHeight - 1, 14);
     ctx.fill();
@@ -508,7 +546,7 @@ export class QuiltRenderer {
 
     for (const generation of this.geometry.generations) {
       if (generation.personBand) {
-        ctx.fillStyle = "rgba(11, 110, 116, 0.08)";
+        ctx.fillStyle = this.palette.minimapPersonBand;
         ctx.fillRect(
           generation.personBand.x,
           generation.personBand.y,
@@ -517,7 +555,7 @@ export class QuiltRenderer {
         );
       }
       if (generation.familyBand) {
-        ctx.fillStyle = "rgba(154, 93, 22, 0.1)";
+        ctx.fillStyle = this.palette.minimapFamilyBand;
         ctx.fillRect(
           generation.familyBand.x,
           generation.familyBand.y,
@@ -538,17 +576,17 @@ export class QuiltRenderer {
           : timelineFocused
             ? "rgba(53, 85, 250, 0.72)"
             : vertex.kind === "family"
-              ? "rgba(120, 120, 120, 0.42)"
-              : "rgba(70, 78, 82, 0.42)";
+              ? this.palette.minimapFamily
+              : this.palette.minimapPerson;
       ctx.fillRect(vertex.x, vertex.y, vertex.width, vertex.height);
     }
 
     ctx.restore();
 
     const viewport = currentViewportWorldQuad(this);
-    ctx.strokeStyle = "rgba(215, 59, 38, 0.92)";
+    ctx.strokeStyle = this.palette.minimapViewportStroke;
     ctx.lineWidth = 1.5;
-    ctx.fillStyle = "rgba(215, 59, 38, 0.08)";
+    ctx.fillStyle = this.palette.minimapViewportFill;
     ctx.beginPath();
     viewport.forEach((point, index) => {
       const projected = worldToScreenPoint(point, this.minimapTransform);
@@ -720,6 +758,7 @@ function buildGeometry(scene, measureCtx) {
     .map((edge) => layoutEdge(edge, vertexById))
     .filter(Boolean);
   const edgeByIndex = new Map(edges.map((edge) => [edge.index, edge]));
+  const connectionRanges = buildConnectionRanges(edges);
 
   const bounds = computeBounds(vertices, generationLayouts);
 
@@ -729,6 +768,7 @@ function buildGeometry(scene, measureCtx) {
     vertices,
     edges,
     edgeByIndex,
+    connectionRanges,
     vertexById,
     bounds,
   };
@@ -990,11 +1030,74 @@ function computeBoundsFromRects(rects) {
   };
 }
 
+function rendererPalette(theme) {
+  if (theme === "dark") {
+    return {
+      paperGradientStart: "#1b2531",
+      paperGradientMiddle: "#131b24",
+      paperGradientEnd: "#18202a",
+      generationPerson: "rgba(151, 162, 171, 0.16)",
+      generationPersonDense: "rgba(151, 162, 171, 0.34)",
+      generationFamily: "rgba(197, 166, 123, 0.16)",
+      generationFamilyDense: "rgba(197, 166, 123, 0.28)",
+      grid: "rgba(212, 220, 228, 0.22)",
+      edgeDefault: "rgba(171, 183, 193, 0.74)",
+      edgeHighlightStroke: "rgba(245, 249, 255, 0.88)",
+      personDense: "rgba(152, 162, 173, 0.74)",
+      personText: "#edf2f7",
+      familyBaseFill: "rgba(31, 41, 53, 0.98)",
+      familyBaseStroke: "rgba(188, 168, 135, 0.88)",
+      familyBaseText: "#f3e1bf",
+      familyPatternStroke: "rgba(188, 168, 135, 0.22)",
+      minimapBackground: "rgba(14, 20, 28, 0.94)",
+      minimapBorder: "rgba(227, 234, 242, 0.14)",
+      minimapPersonBand: "rgba(87, 180, 189, 0.14)",
+      minimapFamilyBand: "rgba(214, 154, 83, 0.14)",
+      minimapFamily: "rgba(173, 179, 187, 0.48)",
+      minimapPerson: "rgba(116, 128, 140, 0.5)",
+      minimapViewportStroke: "rgba(255, 126, 110, 0.94)",
+      minimapViewportFill: "rgba(255, 126, 110, 0.12)",
+    };
+  }
+
+  return {
+    paperGradientStart: "#faf2e3",
+    paperGradientMiddle: "#f1e6d2",
+    paperGradientEnd: "#f8f1e4",
+    generationPerson: "rgba(120, 120, 120, 0.14)",
+    generationPersonDense: "rgba(160, 160, 160, 0.45)",
+    generationFamily: "rgba(170, 170, 170, 0.14)",
+    generationFamilyDense: "rgba(188, 188, 188, 0.48)",
+    grid: "rgba(120, 120, 120, 0.32)",
+    edgeDefault: "rgba(56, 63, 67, 0.78)",
+    edgeHighlightStroke: "rgba(255,255,255,0.88)",
+    personDense: "rgba(150, 150, 150, 0.72)",
+    personText: "#12181d",
+    familyBaseFill: "rgba(248, 245, 235, 0.98)",
+    familyBaseStroke: "rgba(124, 111, 83, 0.92)",
+    familyBaseText: "#2a261f",
+    familyPatternStroke: "rgba(124, 111, 83, 0.28)",
+    minimapBackground: "rgba(255, 251, 244, 0.92)",
+    minimapBorder: "rgba(29, 37, 45, 0.14)",
+    minimapPersonBand: "rgba(11, 110, 116, 0.08)",
+    minimapFamilyBand: "rgba(154, 93, 22, 0.1)",
+    minimapFamily: "rgba(120, 120, 120, 0.42)",
+    minimapPerson: "rgba(70, 78, 82, 0.42)",
+    minimapViewportStroke: "rgba(215, 59, 38, 0.92)",
+    minimapViewportFill: "rgba(215, 59, 38, 0.08)",
+  };
+}
+
+function currentRendererPalette(ctx) {
+  return ctx.__geneaquiltPalette ?? rendererPalette("light");
+}
+
 function drawPaper(ctx, width, height) {
+  const palette = currentRendererPalette(ctx);
   const gradient = ctx.createLinearGradient(0, 0, width, height);
-  gradient.addColorStop(0, "#faf2e3");
-  gradient.addColorStop(0.5, "#f1e6d2");
-  gradient.addColorStop(1, "#f8f1e4");
+  gradient.addColorStop(0, palette.paperGradientStart);
+  gradient.addColorStop(0.5, palette.paperGradientMiddle);
+  gradient.addColorStop(1, palette.paperGradientEnd);
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, width, height);
 }
@@ -1006,8 +1109,8 @@ function drawGenerationBlocks(ctx, geometry, renderer) {
     if (generation.personBand) {
       ctx.fillStyle =
         renderer.scale < 0.15
-          ? "rgba(160, 160, 160, 0.45)"
-          : "rgba(120, 120, 120, 0.14)";
+          ? renderer.palette.generationPersonDense
+          : renderer.palette.generationPerson;
       ctx.fillRect(
         generation.personBand.x - 1,
         generation.personBand.y,
@@ -1019,8 +1122,8 @@ function drawGenerationBlocks(ctx, geometry, renderer) {
     if (generation.familyBand) {
       ctx.fillStyle =
         renderer.scale < 0.15
-          ? "rgba(188, 188, 188, 0.48)"
-          : "rgba(170, 170, 170, 0.14)";
+          ? renderer.palette.generationFamilyDense
+          : renderer.palette.generationFamily;
       ctx.fillRect(
         generation.familyBand.x,
         generation.familyBand.y - 1,
@@ -1038,16 +1141,51 @@ function buildConnectionRanges(edges) {
   const personLookup = new Map();
 
   for (const edge of edges) {
-    pushRange(familyLookup, edge.familyId, edge.y, edge.y + edge.height);
+    pushRange(familyLookup, edge.familyId, edge.centerY, edge.centerY);
     pushRange(personLookup, edge.personId, edge.x, edge.x + edge.width);
   }
 
   return { familyLookup, personLookup };
 }
 
+function buildVertexLineSegments(vertex, ranges) {
+  if (vertex.kind === "person") {
+    const range = ranges.personLookup.get(vertex.id);
+    const minX = Math.min(vertex.x, range?.min ?? vertex.x);
+    const maxX = Math.max(vertex.x + vertex.width, range?.max ?? vertex.x + vertex.width);
+    const segments = [
+      {
+        start: { x: minX, y: vertex.y },
+        end: { x: maxX, y: vertex.y },
+      },
+    ];
+    if (!range) {
+      segments.push({
+        start: { x: vertex.x, y: vertex.y + vertex.height },
+        end: { x: vertex.x + vertex.width, y: vertex.y + vertex.height },
+      });
+    }
+    return segments;
+  }
+
+  const range = ranges.familyLookup.get(vertex.id);
+  const minY = Math.min(vertex.y, range?.min ?? vertex.y);
+  const maxY = Math.max(vertex.y + vertex.height, range?.max ?? vertex.y + vertex.height);
+  return [
+    {
+      start: { x: vertex.x, y: minY },
+      end: { x: vertex.x, y: maxY },
+    },
+    {
+      start: { x: vertex.x + vertex.width, y: minY },
+      end: { x: vertex.x + vertex.width, y: maxY },
+    },
+  ];
+}
+
 function drawGrid(ctx, geometry, renderer, ranges) {
   ctx.save();
-  ctx.strokeStyle = "rgba(120, 120, 120, 0.32)";
+  ctx.strokeStyle = renderer.palette.grid;
   ctx.lineWidth = 1 / renderer.scale;
 
   for (const vertex of geometry.vertices) {
@@ -1208,8 +1346,8 @@ function drawEdges(ctx, geometry, renderer) {
         ? "rgba(53, 85, 250, 0.84)"
       : searchRelated
         ? "rgba(154, 93, 22, 0.88)"
-        : "rgba(56, 63, 67, 0.78)";
-    ctx.strokeStyle = "rgba(255,255,255,0.88)";
+        : renderer.palette.edgeDefault;
+    ctx.strokeStyle = renderer.palette.edgeHighlightStroke;
     ctx.lineWidth = highlighted ? 1.4 / renderer.scale : 0;
 
     const size = Math.min(Math.min(edge.width, edge.height) * 0.62, 8.5);
@@ -1292,7 +1430,7 @@ function drawPerson(ctx, vertex, renderer) {
         ? "rgba(154, 93, 22, 0.72)"
         : highlighted
           ? highlightColor
-          : "rgba(150, 150, 150, 0.72)";
+          : renderer.palette.personDense;
     ctx.fillRect(vertex.x, vertex.y + vertex.height * 0.12, vertex.width, vertex.height * 0.76);
     return;
   }
@@ -1314,7 +1452,7 @@ function drawPerson(ctx, vertex, renderer) {
       ? highlightColor
       : searched
         ? "#9a5d16"
-        : "#12181d";
+        : renderer.palette.personText;
   ctx.font = PERSON_FONT;
   ctx.textBaseline = "top";
   ctx.fillText(vertex.label, vertex.x, vertex.y);
@@ -1330,7 +1468,7 @@ function drawFamily(ctx, vertex, renderer) {
   const highlightColor = highlightTextColor(highlightColors);
 
   ctx.fillRect(vertex.x, vertex.y, vertex.width, vertex.height);
-  ctx.fillStyle = FAMILY_BASE_FILL;
+  ctx.fillStyle = renderer.palette.familyBaseFill;
   ctx.fillRect(vertex.x, vertex.y, vertex.width, vertex.height);
   fillFamilyPattern(ctx, vertex, renderer.scale);
 
@@ -1354,7 +1492,7 @@ function drawFamily(ctx, vertex, renderer) {
         ? "rgba(255, 244, 226, 0.94)"
         : highlighted
           ? highlightStrokeColor(highlightColors)
-          : FAMILY_BASE_STROKE;
+          : renderer.palette.familyBaseStroke;
   ctx.lineWidth = 1 / renderer.scale;
   ctx.strokeRect(vertex.x, vertex.y, vertex.width, vertex.height);
 
@@ -1370,7 +1508,7 @@ function drawFamily(ctx, vertex, renderer) {
           ? "#3555fa"
           : highlighted
             ? highlightColor
-            : FAMILY_BASE_TEXT;
+            : renderer.palette.familyBaseText;
     ctx.font = FAMILY_FONT;
     ctx.textBaseline = "top";
     ctx.fillText(vertex.label, vertex.x + 2, vertex.y + 2);
@@ -1633,11 +1771,12 @@ function normalizeWheelDelta(event) {
 
 function fillFamilyPattern(ctx, vertex, scale) {
   const stripePitch = Math.max(2.2, 5 / Math.max(scale, 0.35));
+  const palette = currentRendererPalette(ctx);
   ctx.save();
   ctx.beginPath();
   ctx.rect(vertex.x, vertex.y, vertex.width, vertex.height);
   ctx.clip();
-  ctx.strokeStyle = "rgba(124, 111, 83, 0.28)";
+  ctx.strokeStyle = palette.familyPatternStroke;
   ctx.lineWidth = Math.max(0.6, 1 / Math.max(scale, 0.5));
 
   for (let offset = -vertex.height; offset < vertex.width + vertex.height; offset += stripePitch) {
@@ -2232,4 +2371,14 @@ function pointInPolygon(point, polygon) {
   }
 
   return inside;
+}
+
+function pointToSegmentDistance(point, start, end) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const lengthSq = dx * dx + dy * dy || 1;
+  const t = clamp(((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSq, 0, 1);
+  const projectedX = start.x + dx * t;
+  const projectedY = start.y + dy * t;
+  return Math.hypot(point.x - projectedX, point.y - projectedY);
 }

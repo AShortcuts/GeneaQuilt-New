@@ -1,7 +1,7 @@
 use std::{env, fs, process::ExitCode};
 
 use geneaquilt_core::parse_gedcom;
-use geneaquilt_layout::{assign_layers, audit_family_generation_mismatches};
+use geneaquilt_layout::{assign_layers, assign_layers_v2, audit_family_generation_mismatches};
 
 fn main() -> ExitCode {
     match run() {
@@ -17,6 +17,7 @@ fn run() -> Result<(), String> {
     let mut args = env::args().skip(1);
     let mut path = None::<String>;
     let mut limit = 10usize;
+    let mut ranker = Ranker::Original;
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -28,18 +29,27 @@ fn run() -> Result<(), String> {
                     .parse::<usize>()
                     .map_err(|_| format!("invalid --limit value: {value}"))?;
             }
+            "--ranker" => {
+                let value = args
+                    .next()
+                    .ok_or_else(|| "--ranker requires one of: original, v2".to_string())?;
+                ranker = value.parse()?;
+            }
             _ if path.is_none() => path = Some(arg),
             _ => return Err(format!("unexpected argument: {arg}")),
         }
     }
 
     let Some(path) = path else {
-        return Err("usage: cargo run -p geneaquilt-layout --bin geneaquilt-audit -- <path-to-gedcom> [--limit N]".to_string());
+        return Err("usage: cargo run -p geneaquilt-layout --bin geneaquilt-audit -- <path-to-gedcom> [--limit N] [--ranker original|v2]".to_string());
     };
 
     let source = fs::read_to_string(&path).map_err(|error| format!("failed to read {path}: {error}"))?;
     let graph = parse_gedcom(&source).map_err(|error| format!("failed to parse GEDCOM: {error}"))?;
-    let state = assign_layers(&graph);
+    let state = match ranker {
+        Ranker::Original => assign_layers(&graph),
+        Ranker::V2 => assign_layers_v2(&graph),
+    };
     let mismatches = audit_family_generation_mismatches(&graph, &state);
     let cycle_component = mismatches.iter().filter(|mismatch| mismatch.cycle_component).count();
     let anchored = mismatches
@@ -56,6 +66,7 @@ fn run() -> Result<(), String> {
         .count();
 
     println!("GEDCOM audit: {path}");
+    println!("ranker={ranker}");
     println!(
         "people={} families={} edges={} components={} max_layer={} mismatches={}",
         graph.person_count(),
@@ -102,4 +113,31 @@ fn run() -> Result<(), String> {
     }
 
     Ok(())
+}
+
+#[derive(Clone, Copy)]
+enum Ranker {
+    Original,
+    V2,
+}
+
+impl std::fmt::Display for Ranker {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Original => write!(f, "original"),
+            Self::V2 => write!(f, "v2"),
+        }
+    }
+}
+
+impl std::str::FromStr for Ranker {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "original" => Ok(Self::Original),
+            "v2" => Ok(Self::V2),
+            _ => Err(format!("invalid --ranker value: {value}")),
+        }
+    }
 }

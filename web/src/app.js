@@ -46,15 +46,25 @@ const sampleGedcom = `0 @I1@ INDI
 2 DATE 1954
 `;
 
+const THEME_STORAGE_KEY = "geneaquilt-theme";
+
 export async function createApp() {
   const wasm = await loadEngineModule();
   const status = JSON.parse(wasm.engine_status_json());
   const page = document.createElement("main");
   page.className = "page";
+  let theme = getInitialTheme();
+  document.documentElement.dataset.theme = theme;
+  document.documentElement.style.colorScheme = theme;
 
   page.innerHTML = `
     <section class="hero">
-      <div class="eyebrow">GeneaQuilt for the web</div>
+      <div class="hero-topline">
+        <div class="eyebrow">GeneaQuilt for the web</div>
+        <button class="button theme-toggle-button" type="button" aria-pressed="${theme === "dark" ? "true" : "false"}">
+          ${theme === "dark" ? "Light mode" : "Dark mode"}
+        </button>
+      </div>
       <div class="hero-grid">
         <div>
           <h1>GEDCOM in, quilt out.</h1>
@@ -94,6 +104,13 @@ export async function createApp() {
             <span>Load default GEDCOM</span>
             <strong>Built-in demo tree</strong>
           </button>
+          <label class="field ranker-field">
+            <span>Ranker</span>
+            <select class="ranker-select">
+              <option value="original">Original</option>
+              <option value="v2">V2 experimental</option>
+            </select>
+          </label>
           <button class="button button-primary analyze-button">Build quilt</button>
           <button class="button fit-button" type="button">Fit view</button>
           <button class="button zoom-in-button" type="button">Zoom in</button>
@@ -226,6 +243,7 @@ export async function createApp() {
   const sourceBody = page.querySelector(".source-body");
   const loadDefaultButton = page.querySelector(".load-default-button");
   const analyzeButton = page.querySelector(".analyze-button");
+  const rankerSelect = page.querySelector(".ranker-select");
   const fitButton = page.querySelector(".fit-button");
   const zoomInButton = page.querySelector(".zoom-in-button");
   const zoomOutButton = page.querySelector(".zoom-out-button");
@@ -244,6 +262,7 @@ export async function createApp() {
   const rotationResetButton = page.querySelector(".rotation-reset-button");
   const exportHtmlButton = page.querySelector(".export-html-button");
   const printExportButton = page.querySelector(".print-export-button");
+  const themeToggleButton = page.querySelector(".theme-toggle-button");
   const layersPill = page.querySelector(".layers-pill");
   const countsPill = page.querySelector(".counts-pill");
   const timelineSummary = page.querySelector(".timeline-summary");
@@ -271,6 +290,7 @@ export async function createApp() {
   let namesExpanded = true;
   let pinnedHighlightIds = [];
   let sourceLabel = "demo-tree";
+  let activeRanker = rankerSelect.value;
 
   const renderer = new QuiltRenderer(canvas, {
     minimapCanvas,
@@ -281,9 +301,21 @@ export async function createApp() {
       }
     },
   });
+  renderer.setTheme(theme);
   renderer.setZoomSpeed(sliderValueToZoomSpeed(Number(zoomSpeedInput.value)));
   zoomSpeedValue.textContent = sliderValueToZoomLabel(Number(zoomSpeedInput.value));
   expandButton.textContent = "Compact names";
+
+  function applyTheme(nextTheme) {
+    theme = nextTheme === "dark" ? "dark" : "light";
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
+    themeToggleButton.textContent = theme === "dark" ? "Light mode" : "Dark mode";
+    themeToggleButton.setAttribute("aria-pressed", String(theme === "dark"));
+    renderer.setTheme(theme);
+    renderTimeline(timeline);
+  }
 
   function setSourceExpanded(expanded) {
     sourceBody.hidden = !expanded;
@@ -478,9 +510,20 @@ export async function createApp() {
 
   function renderTimeline(summary) {
     timeline = summary;
+    const palette = timelinePalette(theme);
     if (!summary || !summary.bins?.length) {
       timelineSummary.textContent = "No dated vertices";
       timelineClearButton.hidden = true;
+      const rect = timelineCanvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      timelineCanvas.width = Math.max(1, Math.round(rect.width * dpr));
+      timelineCanvas.height = Math.max(1, Math.round(rect.height * dpr));
+      const emptyCtx = timelineCanvas.getContext("2d");
+      emptyCtx.setTransform(1, 0, 0, 1, 0, 0);
+      emptyCtx.scale(dpr, dpr);
+      emptyCtx.clearRect(0, 0, rect.width, rect.height);
+      emptyCtx.fillStyle = palette.background;
+      emptyCtx.fillRect(0, 0, rect.width, rect.height);
       return;
     }
 
@@ -516,7 +559,7 @@ export async function createApp() {
     const chartHeight = height - 26;
     const barWidth = width / summary.bins.length;
 
-    ctx.fillStyle = "rgba(255, 252, 247, 0.94)";
+    ctx.fillStyle = palette.background;
     ctx.fillRect(0, 0, width, height);
 
     for (let index = 0; index < summary.bins.length; index += 1) {
@@ -525,11 +568,11 @@ export async function createApp() {
       const totalHeight = (bin.total / maxTotal) * chartHeight;
       const activeHeight = (bin.active_total / maxTotal) * chartHeight;
 
-      ctx.fillStyle = "rgba(122, 111, 89, 0.22)";
+      ctx.fillStyle = palette.totalBar;
       ctx.fillRect(x, chartTop + chartHeight - totalHeight, Math.max(1, barWidth - 1), totalHeight);
 
       if (bin.families > 0) {
-        ctx.fillStyle = "rgba(11, 110, 116, 0.18)";
+        ctx.fillStyle = palette.familyBar;
         ctx.fillRect(
           x,
           chartTop + chartHeight - (bin.families / maxTotal) * chartHeight,
@@ -539,7 +582,7 @@ export async function createApp() {
       }
 
       if (bin.active_total > 0) {
-        ctx.fillStyle = "rgba(215, 59, 38, 0.72)";
+        ctx.fillStyle = palette.activeBar;
         ctx.fillRect(
           x,
           chartTop + chartHeight - activeHeight,
@@ -553,9 +596,9 @@ export async function createApp() {
       const totalYears = summary.end_year - summary.start_year + 1;
       const startX = ((timelineFocus.start_year - summary.start_year) / totalYears) * width;
       const endX = ((timelineFocus.end_year - summary.start_year + 1) / totalYears) * width;
-      ctx.fillStyle = "rgba(53, 85, 250, 0.12)";
+      ctx.fillStyle = palette.focusFill;
       ctx.fillRect(startX, chartTop, Math.max(2, endX - startX), chartHeight);
-      ctx.strokeStyle = "rgba(53, 85, 250, 0.92)";
+      ctx.strokeStyle = palette.focusStroke;
       ctx.lineWidth = 1.5;
       ctx.strokeRect(startX + 0.75, chartTop + 0.75, Math.max(0.5, endX - startX - 1.5), chartHeight - 1.5);
     }
@@ -565,18 +608,18 @@ export async function createApp() {
       const totalYears = summary.end_year - summary.start_year + 1;
       const startX = ((startYear - summary.start_year) / totalYears) * width;
       const endX = ((endYear - summary.start_year + 1) / totalYears) * width;
-      ctx.fillStyle = "rgba(53, 85, 250, 0.14)";
+      ctx.fillStyle = palette.selectionFill;
       ctx.fillRect(startX, chartTop, Math.max(2, endX - startX), chartHeight);
     }
 
-    ctx.strokeStyle = "rgba(29, 37, 45, 0.16)";
+    ctx.strokeStyle = palette.axis;
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(0, chartTop + chartHeight + 0.5);
     ctx.lineTo(width, chartTop + chartHeight + 0.5);
     ctx.stroke();
 
-    ctx.fillStyle = "rgba(95, 104, 95, 0.94)";
+    ctx.fillStyle = palette.label;
     ctx.font = '11px Georgia, "Times New Roman", serif';
     ctx.textBaseline = "bottom";
     ctx.fillText(String(summary.start_year), 0, height - 2);
@@ -682,11 +725,13 @@ export async function createApp() {
 
   function analyze() {
     try {
-      engine = new wasm.GeneaQuiltEngine(textarea.value);
+      activeRanker = rankerSelect.value;
+      engine = wasm.GeneaQuiltEngine.with_ranker(textarea.value, activeRanker);
       scene = JSON.parse(engine.scene_json());
       renderer.setScene(scene);
       layersPill.textContent = `${scene.summary.layers} layers`;
-      countsPill.textContent = `${scene.vertices.length} vertices · ${scene.edges.length} edges`;
+      countsPill.textContent =
+        `${scene.vertices.length} vertices · ${scene.edges.length} edges · ${activeRanker}`;
 
       selectedId = null;
       pinnedHighlightIds = [];
@@ -806,6 +851,13 @@ export async function createApp() {
 
   loadDefaultButton.addEventListener("click", loadDefaultGedcom);
   analyzeButton.addEventListener("click", analyze);
+  rankerSelect.addEventListener("change", () => {
+    if (!textarea.value.trim()) {
+      activeRanker = rankerSelect.value;
+      return;
+    }
+    analyze();
+  });
   sourceToggle.addEventListener("click", () => {
     setSourceExpanded(sourceBody.hidden);
   });
@@ -870,6 +922,9 @@ export async function createApp() {
   printExportButton.addEventListener("click", () => {
     exportInteractiveSnapshot(true);
   });
+  themeToggleButton.addEventListener("click", () => {
+    applyTheme(theme === "dark" ? "light" : "dark");
+  });
   fileInput.addEventListener("change", async (event) => {
     const file = event.target.files?.[0];
     if (!file) {
@@ -926,6 +981,7 @@ export async function createApp() {
   renderEmptyDetails();
   renderHighlightStack();
   renderTimeline(null);
+  applyTheme(theme);
   applyRotation(0);
   return page;
 }
@@ -980,4 +1036,40 @@ function clamp01(value) {
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
+}
+
+function getInitialTheme() {
+  const stored = localStorage.getItem(THEME_STORAGE_KEY);
+  if (stored === "light" || stored === "dark") {
+    return stored;
+  }
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function timelinePalette(theme) {
+  if (theme === "dark") {
+    return {
+      background: "rgba(21, 28, 36, 0.96)",
+      totalBar: "rgba(187, 173, 145, 0.26)",
+      familyBar: "rgba(54, 154, 166, 0.28)",
+      activeBar: "rgba(255, 108, 88, 0.82)",
+      focusFill: "rgba(91, 127, 255, 0.18)",
+      focusStroke: "rgba(110, 145, 255, 0.96)",
+      selectionFill: "rgba(91, 127, 255, 0.2)",
+      axis: "rgba(227, 234, 242, 0.2)",
+      label: "rgba(210, 220, 229, 0.92)",
+    };
+  }
+
+  return {
+    background: "rgba(255, 252, 247, 0.94)",
+    totalBar: "rgba(122, 111, 89, 0.22)",
+    familyBar: "rgba(11, 110, 116, 0.18)",
+    activeBar: "rgba(215, 59, 38, 0.72)",
+    focusFill: "rgba(53, 85, 250, 0.12)",
+    focusStroke: "rgba(53, 85, 250, 0.92)",
+    selectionFill: "rgba(53, 85, 250, 0.14)",
+    axis: "rgba(29, 37, 45, 0.16)",
+    label: "rgba(95, 104, 95, 0.94)",
+  };
 }
