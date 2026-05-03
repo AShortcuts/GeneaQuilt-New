@@ -1,5 +1,10 @@
 import { loadEngineModule } from "./engine.js";
-import { appSurfaceState, normalizeSurfaceFinish, shouldFitAfterSourceLoad } from "./appState.js";
+import {
+  appSurfaceState,
+  matchesPopupState,
+  shouldFitAfterSourceLoad,
+} from "./appState.js";
+import { buildFocusModel, describeFocusModel } from "./focusModel.js";
 import { QuiltRenderer } from "./quiltRenderer.js";
 
 const sampleGedcom = `0 @I1@ INDI
@@ -48,27 +53,20 @@ const sampleGedcom = `0 @I1@ INDI
 `;
 
 const THEME_STORAGE_KEY = "geneaquilt-theme";
-const SURFACE_FINISH_STORAGE_KEY = "geneaquilt-surface-finish";
 
 export async function createApp() {
   const wasm = await loadEngineModule();
   const page = document.createElement("main");
   page.className = "page";
   let theme = getInitialTheme();
-  let surfaceFinish = getInitialSurfaceFinish();
   document.documentElement.dataset.theme = theme;
-  document.documentElement.dataset.surface = surfaceFinish;
   document.documentElement.style.colorScheme = theme;
 
   page.innerHTML = `
     <section class="hero">
       <div class="hero-topline">
-        <div class="eyebrow">GeneaQuilt for the web</div>
+        <div class="eyebrow">GeneaQuilt</div>
         <div class="appearance-controls" aria-label="Appearance">
-          <div class="finish-toggle" role="group" aria-label="Surface finish">
-            <button class="finish-option" type="button" data-finish-option="glossy" aria-pressed="${surfaceFinish === "glossy" ? "true" : "false"}">Glossy</button>
-            <button class="finish-option" type="button" data-finish-option="matte" aria-pressed="${surfaceFinish === "matte" ? "true" : "false"}">Matte</button>
-          </div>
           <button class="button icon-button theme-toggle-button" type="button" aria-pressed="${theme === "dark" ? "true" : "false"}" aria-label="${theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}">
             ${iconSvg(theme === "dark" ? "sun" : "moon")}
           </button>
@@ -76,9 +74,9 @@ export async function createApp() {
       </div>
       <div class="hero-grid">
         <div>
-          <h1>GEDCOM in, quilt out.</h1>
+          <h1>GEDCOM viewer</h1>
           <p class="lede">
-            Open a family tree file, explore the quilt, and follow relationships without installing anything.
+            Load a family tree, inspect the quilt layout, search people, and export a working snapshot.
           </p>
         </div>
       </div>
@@ -88,7 +86,7 @@ export async function createApp() {
         <div class="panel-header">
           <div>
             <div class="kicker">Source</div>
-            <h2>Controls</h2>
+            <h2>Input</h2>
           </div>
           <label class="button button-file">
             <input type="file" accept=".ged,.gedcom,.txt" />
@@ -97,7 +95,7 @@ export async function createApp() {
           </label>
         </div>
         <button class="button load-default-button" type="button">
-          <span>${iconSvg("folder-open")}Load Sample Family Tree</span>
+          <span>${iconSvg("folder-open")}Load sample tree</span>
         </button>
         <button class="source-toggle" type="button" aria-expanded="false">
           <span>GEDCOM input</span>
@@ -123,28 +121,16 @@ export async function createApp() {
             Compact names shortens labels when the quilt is crowded. Expand names shows the fuller names again.
           </small>
         </div>
-        <section class="matches-panel">
-          <div class="search-results-title">Matches</div>
-          <div class="search-results"></div>
-        </section>
-      </section>
-      <section class="stage-panel panel">
-        <div class="panel-header">
-          <div>
-            <div class="kicker">Quilt</div>
-            <h2>Interactive quilt</h2>
-          </div>
-          <div class="stage-meta">
-            <span class="pill layers-pill">0 generations</span>
-            <span class="pill counts-pill">0 items</span>
-          </div>
-        </div>
-        <div class="toolbar">
+        <div class="toolbar interactive-controls">
           <label class="field search-field">
             <span>Search</span>
             <input class="search-input" type="search" placeholder="Search names, dates, or attributes" />
             <small class="field-note">Search by name, year, family ID, or file detail.</small>
           </label>
+          <section class="matches-panel search-popup" aria-live="polite">
+            <div class="search-results-title">Matches</div>
+            <div class="search-results"></div>
+          </section>
           <label class="field">
             <span>Search in</span>
             <select class="search-scope-select">
@@ -189,11 +175,24 @@ export async function createApp() {
             <button class="button print-export-button" type="button">${iconSvg("printer")}Print / PDF</button>
           </div>
         </div>
+      </section>
+      <section class="stage-panel panel">
+        <div class="panel-header">
+          <div>
+            <div class="kicker">Quilt</div>
+            <h2>Quilt view</h2>
+          </div>
+          <div class="stage-meta">
+            <span class="pill layers-pill">0 generations</span>
+            <span class="pill counts-pill">0 items</span>
+          </div>
+        </div>
         <section class="timeline-panel">
           <div class="timeline-header">
             <div class="timeline-title">Timeline</div>
             <div class="timeline-header-actions">
-            <div class="timeline-summary">No dates yet</div>
+              <div class="focus-status">No active focus</div>
+              <div class="timeline-summary">No dates yet</div>
               <button class="button timeline-clear-button" type="button" hidden>Clear range</button>
             </div>
           </div>
@@ -231,7 +230,7 @@ export async function createApp() {
         <div class="panel-header">
           <div>
             <div class="kicker">Selection</div>
-            <h2>Vertex details</h2>
+            <h2>Details</h2>
           </div>
           <div class="detail-actions">
             <button class="button pin-highlight-button" type="button">${iconSvg("pin")}Pin highlight</button>
@@ -253,6 +252,7 @@ export async function createApp() {
   const sourcePanel = page.querySelector(".source-panel");
   const stagePanel = page.querySelector(".stage-panel");
   const detailPanel = page.querySelector(".detail-panel");
+  const interactiveControls = page.querySelector(".interactive-controls");
   const matchesPanel = page.querySelector(".matches-panel");
   const loadDefaultButton = page.querySelector(".load-default-button");
   const analyzeButton = page.querySelector(".analyze-button");
@@ -276,10 +276,10 @@ export async function createApp() {
   const exportHtmlButton = page.querySelector(".export-html-button");
   const printExportButton = page.querySelector(".print-export-button");
   const themeToggleButton = page.querySelector(".theme-toggle-button");
-  const finishButtons = [...page.querySelectorAll("[data-finish-option]")];
   const layersPill = page.querySelector(".layers-pill");
   const countsPill = page.querySelector(".counts-pill");
   const timelineSummary = page.querySelector(".timeline-summary");
+  const focusStatus = page.querySelector(".focus-status");
   const timelineCanvas = page.querySelector(".timeline-canvas");
   const timelineScopeSelect = page.querySelector(".timeline-scope-select");
   const timelineActionSelect = page.querySelector(".timeline-action-select");
@@ -316,6 +316,10 @@ export async function createApp() {
         syncSelection();
       }
     },
+    onRotationChange: (degrees) => {
+      rotationInput.value = String(Math.round(degrees));
+      rotationValue.textContent = formatAngleLabel(degrees);
+    },
     onViewportChange: (ids) => {
       visibleVertexIds = ids;
       if (engine && !timelineFocus && !isBuildingScene) {
@@ -343,15 +347,6 @@ export async function createApp() {
     renderTimeline(timeline);
   }
 
-  function applySurfaceFinish(nextFinish) {
-    surfaceFinish = normalizeSurfaceFinish(nextFinish);
-    document.documentElement.dataset.surface = surfaceFinish;
-    localStorage.setItem(SURFACE_FINISH_STORAGE_KEY, surfaceFinish);
-    for (const button of finishButtons) {
-      button.setAttribute("aria-pressed", String(button.dataset.finishOption === surfaceFinish));
-    }
-  }
-
   function setSourceExpanded(expanded) {
     sourceBody.hidden = !expanded;
     sourceToggle.setAttribute("aria-expanded", String(expanded));
@@ -361,22 +356,33 @@ export async function createApp() {
   setSourceExpanded(false);
 
   function syncSurfaceState() {
+    const focusModel = currentFocusModel();
     const surface = appSurfaceState({
       hasScene: Boolean(scene),
-      hasSelection: Boolean(selectedId || timelineFocus),
+      hasSelection: focusModel.hasSelectionContext || focusModel.hasTimelineContext,
     });
     page.dataset.state = surface.state;
     sourcePanel.hidden = !surface.showSource;
     stagePanel.hidden = !surface.showStage;
     detailPanel.hidden = !surface.showDetails;
-    matchesPanel.hidden = !surface.showSearch;
+    interactiveControls.hidden = !surface.showControls;
+    syncMatchesPopup();
+  }
+
+  function syncMatchesPopup() {
+    const popup = matchesPopupState({
+      hasScene: Boolean(scene),
+      query: searchInput.value,
+      resultCount: currentSearchResults.length,
+    });
+    matchesPanel.hidden = !popup.showPopup;
+    matchesPanel.dataset.state = popup.state;
   }
 
   function renderSearchResults(results) {
     currentSearchResults = results;
-    renderer.setSearchMatches(
-      searchInput.value.trim() ? results.map((result) => result.id) : [],
-    );
+    syncFocusModel();
+    syncMatchesPopup();
     searchResults.innerHTML = "";
 
     if (!results.length) {
@@ -402,7 +408,8 @@ export async function createApp() {
 
   function renderIdleSearchState() {
     currentSearchResults = [];
-    renderer.setSearchMatches([]);
+    syncFocusModel();
+    syncMatchesPopup();
     searchResults.innerHTML = `<div class="empty-state">Load a GEDCOM to search and inspect the quilt.</div>`;
   }
 
@@ -414,7 +421,8 @@ export async function createApp() {
 
     if (!searchInput.value.trim()) {
       currentSearchResults = [];
-      renderer.setSearchMatches([]);
+      syncFocusModel();
+      syncMatchesPopup();
       searchResults.innerHTML = `<div class="empty-state">Search names, dates, or attributes to list matches.</div>`;
       return;
     }
@@ -425,7 +433,7 @@ export async function createApp() {
 
   function renderDetails(details, interaction) {
     detailSummary.innerHTML = `
-      <div class="detail-card">
+      <div class="detail-compact">
         <div class="detail-heading">
           <div>
             <div class="detail-id">${escapeHtml(details.id)}</div>
@@ -443,33 +451,34 @@ export async function createApp() {
     `;
 
     detailRelations.innerHTML = `
-      <div class="relation-block">
-        <h3>Trace</h3>
-        <p>${interaction.highlighted_vertices.length} highlighted items, ${interaction.highlighted_edges.length} relationship links.</p>
-      </div>
-      <div class="relation-block">
-        <h3>Bring and slide</h3>
-        <p>${
+      <div class="relation-list">
+        <div class="relation-row">
+          <span>Trace</span>
+          <strong>${interaction.highlighted_vertices.length} items · ${interaction.highlighted_edges.length} links</strong>
+        </div>
+        <div class="relation-row">
+          <span>Bring and slide</span>
+          <strong>${
           details.kind === "person"
-            ? "Drag left from the selected person to navigate to parents and siblings, or drag right to navigate to spouses and children."
+            ? "Drag left for parents/siblings, right for spouses/children."
             : "Select a person to use bring-and-slide navigation."
-        }</p>
-      </div>
-      <div class="relation-block">
-        <h3>Parents</h3>
-        <p>${details.parents.length ? details.parents.map(escapeHtml).join(", ") : "None"}</p>
-      </div>
-      <div class="relation-block">
-        <h3>Spouses</h3>
-        <p>${details.spouses.length ? details.spouses.map(escapeHtml).join(", ") : "None"}</p>
-      </div>
-      <div class="relation-block">
-        <h3>Children</h3>
-        <p>${details.children.length ? details.children.map(escapeHtml).join(", ") : "None"}</p>
-      </div>
-      <div class="relation-block relation-block-subtle">
-        <h3>Graph links</h3>
-        <p>${
+        }</strong>
+        </div>
+        <div class="relation-row">
+          <span>Parents</span>
+          <strong>${details.parents.length ? details.parents.map(escapeHtml).join(", ") : "None"}</strong>
+        </div>
+        <div class="relation-row">
+          <span>Spouses</span>
+          <strong>${details.spouses.length ? details.spouses.map(escapeHtml).join(", ") : "None"}</strong>
+        </div>
+        <div class="relation-row">
+          <span>Children</span>
+          <strong>${details.children.length ? details.children.map(escapeHtml).join(", ") : "None"}</strong>
+        </div>
+        <div class="relation-row">
+          <span>Graph links</span>
+          <strong>${
           details.kind === "person"
             ? [
                 details.parent_families.length
@@ -491,7 +500,8 @@ export async function createApp() {
               ]
                 .filter(Boolean)
                 .join(" · ") || "None"
-        }</p>
+        }</strong>
+        </div>
       </div>
     `;
 
@@ -528,9 +538,9 @@ export async function createApp() {
         ? "People"
         : focus.scope === "families"
           ? "Families"
-          : "All dated";
+          : "All items";
     detailSummary.innerHTML = `
-      <div class="detail-card">
+      <div class="detail-compact">
         <div class="detail-heading">
           <div>
             <div class="detail-id">Timeline focus</div>
@@ -548,13 +558,15 @@ export async function createApp() {
     `;
 
     detailRelations.innerHTML = `
-      <div class="relation-block">
-        <h3>Range filter</h3>
-        <p>${focus.matching_vertices_with_dates ? "Timeline focus is active across the quilt." : "No dated items fall inside this year range."}</p>
-      </div>
-      <div class="relation-block">
-        <h3>Interaction</h3>
-        <p>Drag across the timeline to brush a wider range, then click a node inside it to combine date focus with tracing.</p>
+      <div class="relation-list">
+        <div class="relation-row">
+          <span>Range filter</span>
+          <strong>${focus.matching_vertices_with_dates ? "Active across the quilt" : "No items in this range"}</strong>
+        </div>
+        <div class="relation-row">
+          <span>Interaction</span>
+          <strong>Drag the timeline, then click a node to combine date focus with tracing.</strong>
+        </div>
       </div>
     `;
 
@@ -591,7 +603,7 @@ export async function createApp() {
         ? "people"
         : summary.scope === "families"
           ? "families"
-          : "all dated";
+          : "items";
     const focusText = timelineFocus
       ? `range ${timelineFocus.start_year}-${timelineFocus.end_year} · ${timelineFocus.matching_vertices_with_dates} ${scopeText}`
       : activeText;
@@ -684,12 +696,23 @@ export async function createApp() {
     ctx.fillText(endLabel, width - endWidth, height - 2);
   }
 
-  function activeTimelineIds() {
-    const highlights = [...new Set([selectedId, ...pinnedHighlightIds].filter(Boolean))];
-    if (timelineFocus) {
-      return highlights;
-    }
-    return [...new Set([...visibleVertexIds, ...highlights])];
+  function currentFocusModel() {
+    return buildFocusModel({
+      selectedId,
+      pinnedIds: pinnedHighlightIds,
+      searchMatchIds: searchInput.value.trim()
+        ? currentSearchResults.map((result) => result.id)
+        : [],
+      visibleIds: visibleVertexIds,
+      timelineFocus,
+    });
+  }
+
+  function syncFocusModel() {
+    const model = currentFocusModel();
+    focusStatus.textContent = describeFocusModel(model);
+    renderer.setFocusModel(model);
+    return model;
   }
 
   function syncTimeline() {
@@ -697,10 +720,11 @@ export async function createApp() {
       renderTimeline(null);
       return;
     }
+    const focusModel = syncFocusModel();
     renderTimeline(
       JSON.parse(
         engine.timeline_json(
-          JSON.stringify(activeTimelineIds()),
+          JSON.stringify(focusModel.timelineActiveIds),
           selectedId ?? undefined,
           timelineScopeSelect.value,
         ),
@@ -709,7 +733,7 @@ export async function createApp() {
   }
 
   function renderHighlightStack() {
-    const ids = [...new Set([selectedId, ...pinnedHighlightIds].filter(Boolean))];
+    const ids = currentFocusModel().highlightIds;
     highlightStack.innerHTML = "";
 
     if (!ids.length) {
@@ -754,7 +778,7 @@ export async function createApp() {
       renderer.setInteraction(null);
       renderer.setHighlightSummary(null);
       renderer.setBringAndSlide({ left: null, right: null });
-      renderer.setTimelineFocus(timelineFocus);
+      syncFocusModel();
       renderer.setIsolation(isolateToggle.checked, Number(depthInput.value));
       syncTimeline();
       if (timelineFocus) {
@@ -784,7 +808,7 @@ export async function createApp() {
       renderer.setInteraction(interaction);
       renderer.setHighlightSummary(highlightSummary);
       renderer.setBringAndSlide(bringAndSlide);
-      renderer.setTimelineFocus(timelineFocus);
+      syncFocusModel();
       renderer.setIsolation(isolateToggle.checked, Number(depthInput.value));
       syncTimeline();
       renderDetails(details, interaction);
@@ -827,7 +851,7 @@ export async function createApp() {
       pinnedHighlightIds = [];
       timelineFocus = null;
       visibleVertexIds = [];
-      renderer.setTimelineFocus(null);
+      syncFocusModel();
       refreshSearch();
       syncSelection();
       syncSurfaceState();
@@ -876,16 +900,16 @@ export async function createApp() {
     timelineFocus = JSON.parse(
       engine.timeline_focus_json(normalizedStart, normalizedEnd, timelineScopeSelect.value),
     );
-    renderer.setTimelineFocus(timelineFocus);
+    syncFocusModel();
     if (fit && timelineFocus.vertex_ids.length) {
-      renderer.fitToVertexIds(timelineFocus.vertex_ids);
+      renderer.fitToVertexIds(timelineFocus.vertex_ids, { animated: true });
     }
     syncSelection();
   }
 
   function clearTimelineFocus() {
     timelineFocus = null;
-    renderer.setTimelineFocus(null);
+    syncFocusModel();
     syncSelection();
   }
 
@@ -895,7 +919,7 @@ export async function createApp() {
     rotationValue.textContent = formatAngleLabel(normalized);
     renderer.setRotationDegrees(normalized);
     if (fit && scene) {
-      renderer.fit();
+      renderer.fit({ animated: true });
     }
   }
 
@@ -957,7 +981,7 @@ export async function createApp() {
   sourceToggle.addEventListener("click", () => {
     setSourceExpanded(sourceBody.hidden);
   });
-  fitButton.addEventListener("click", () => renderer.fit());
+  fitButton.addEventListener("click", () => renderer.fit({ animated: true }));
   zoomInButton.addEventListener("click", () => renderer.zoomBy(1.1));
   zoomOutButton.addEventListener("click", () => renderer.zoomBy(0.9));
   expandButton.addEventListener("click", () => {
@@ -979,7 +1003,7 @@ export async function createApp() {
     selectedId = null;
     pinnedHighlightIds = [];
     timelineFocus = null;
-    renderer.setTimelineFocus(null);
+    syncFocusModel();
     syncSelection();
   });
   timelineClearButton.addEventListener("click", clearTimelineFocus);
@@ -1021,11 +1045,6 @@ export async function createApp() {
   themeToggleButton.addEventListener("click", () => {
     applyTheme(theme === "dark" ? "light" : "dark");
   });
-  for (const button of finishButtons) {
-    button.addEventListener("click", () => {
-      applySurfaceFinish(button.dataset.finishOption);
-    });
-  }
   fileInput.addEventListener("change", async (event) => {
     const file = event.target.files?.[0];
     if (!file) {
@@ -1083,7 +1102,6 @@ export async function createApp() {
   renderHighlightStack();
   renderTimeline(null);
   applyTheme(theme);
-  applySurfaceFinish(surfaceFinish);
   applyRotation(0);
   syncSurfaceState();
   return page;
@@ -1168,34 +1186,30 @@ function getInitialTheme() {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
-function getInitialSurfaceFinish() {
-  return normalizeSurfaceFinish(localStorage.getItem(SURFACE_FINISH_STORAGE_KEY));
-}
-
 function timelinePalette(theme) {
   if (theme === "dark") {
     return {
-      background: "rgba(21, 28, 36, 0.96)",
-      totalBar: "rgba(187, 173, 145, 0.26)",
-      familyBar: "rgba(54, 154, 166, 0.28)",
-      activeBar: "rgba(255, 108, 88, 0.82)",
-      focusFill: "rgba(91, 127, 255, 0.18)",
-      focusStroke: "rgba(110, 145, 255, 0.96)",
-      selectionFill: "rgba(91, 127, 255, 0.2)",
-      axis: "rgba(227, 234, 242, 0.2)",
-      label: "rgba(210, 220, 229, 0.92)",
+      background: "rgba(17, 24, 22, 0.98)",
+      totalBar: "rgba(148, 163, 156, 0.28)",
+      familyBar: "rgba(242, 184, 74, 0.42)",
+      activeBar: "rgba(255, 122, 95, 0.9)",
+      focusFill: "rgba(20, 184, 166, 0.16)",
+      focusStroke: "rgba(45, 212, 191, 0.9)",
+      selectionFill: "rgba(20, 184, 166, 0.18)",
+      axis: "rgba(226, 232, 228, 0.2)",
+      label: "rgba(226, 232, 228, 0.92)",
     };
   }
 
   return {
-    background: "rgba(255, 252, 247, 0.94)",
-    totalBar: "rgba(122, 111, 89, 0.22)",
-    familyBar: "rgba(11, 110, 116, 0.18)",
-    activeBar: "rgba(215, 59, 38, 0.72)",
-    focusFill: "rgba(53, 85, 250, 0.12)",
-    focusStroke: "rgba(53, 85, 250, 0.92)",
-    selectionFill: "rgba(53, 85, 250, 0.14)",
-    axis: "rgba(29, 37, 45, 0.16)",
-    label: "rgba(95, 104, 95, 0.94)",
+    background: "rgba(250, 251, 248, 0.98)",
+    totalBar: "rgba(82, 96, 88, 0.2)",
+    familyBar: "rgba(196, 127, 16, 0.28)",
+    activeBar: "rgba(213, 82, 55, 0.82)",
+    focusFill: "rgba(0, 137, 123, 0.14)",
+    focusStroke: "rgba(0, 137, 123, 0.95)",
+    selectionFill: "rgba(0, 137, 123, 0.15)",
+    axis: "rgba(23, 32, 29, 0.16)",
+    label: "rgba(82, 96, 88, 0.94)",
   };
 }

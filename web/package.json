@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "build:wasm": "wasm-pack build ../crates/geneaquilt-wasm --target web --out-dir ../../web/pkg --release",
+    "build:wasm": "PATH=\"$HOME/Library/Caches/.wasm-pack/wasm-bindgen-cargo-install-0.2.118:$PATH\" wasm-pack build ../crates/geneaquilt-wasm --target web --out-dir ../../web/pkg --release --mode no-install",
     "dev": "npm run build:wasm && vite",
     "build": "npm run build:wasm && vite build",
     "preview": "vite preview"

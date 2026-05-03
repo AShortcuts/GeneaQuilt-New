@@ -6,6 +6,7 @@ export function appSurfaceState({ hasScene, hasSelection }) {
       showStage: false,
       showDetails: false,
       showSearch: false,
+      showControls: false,
     };
   }
 
@@ -15,6 +16,7 @@ export function appSurfaceState({ hasScene, hasSelection }) {
     showStage: true,
     showDetails: Boolean(hasSelection),
     showSearch: true,
+    showControls: true,
   };
 }
 
@@ -23,5 +25,19 @@ export function shouldFitAfterSourceLoad(sourceKind) {
 }
 
 export function normalizeSurfaceFinish(value) {
-  return value === "matte" ? "matte" : "glossy";
+  return "simple";
+}
+
+export function matchesPopupState({ hasScene, query, resultCount = 0 }) {
+  if (!hasScene || !String(query ?? "").trim()) {
+    return {
+      showPopup: false,
+      state: "hidden",
+    };
+  }
+
+  return {
+    showPopup: true,
+    state: resultCount > 0 ? "results" : "empty",
+  };
 }

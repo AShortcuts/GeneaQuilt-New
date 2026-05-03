@@ -1,3 +1,5 @@
+import { interpolateCamera } from "./focusModel.js";
+
 const CELL_SIZE = 14;
 const INDI_LINE_SPACING = 0.85;
 const X_PAD = 10;
@@ -18,10 +20,13 @@ const MINIMAP_PADDING = 10;
 const SLIDE_DISTANCE = 88;
 const SLIDE_COMMIT_THRESHOLD = 0.98;
 const LINE_HIT_SLOP_PX = 10;
-const HIGHLIGHT_COLORS = ["#d73b26", "#0b6e74", "#3555fa", "#9a5d16"];
+const HIGHLIGHT_COLORS = ["#d55237", "#00897b", "#336b7a", "#c47f10"];
 
 export class QuiltRenderer {
-  constructor(canvas, { minimapCanvas = null, onSelect = null, onViewportChange = null } = {}) {
+  constructor(
+    canvas,
+    { minimapCanvas = null, onSelect = null, onViewportChange = null, onRotationChange = null } = {},
+  ) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
     this.minimapCanvas = minimapCanvas;
@@ -30,6 +35,7 @@ export class QuiltRenderer {
     this.measureCtx = this.measureCanvas.getContext("2d");
     this.onSelect = onSelect;
     this.onViewportChange = onViewportChange;
+    this.onRotationChange = onRotationChange;
     this.scene = null;
     this.geometry = null;
     this.vertexById = new Map();
@@ -66,8 +72,11 @@ export class QuiltRenderer {
     this.bringAndSlide = { left: null, right: null };
     this.pointerDown = null;
     this.lastPointer = null;
+    this.activePointers = new Map();
+    this.rotationGesture = null;
     this.minimapTransform = null;
     this.lastViewportSignature = "";
+    this.cameraAnimation = null;
     this.resizeObserver = new ResizeObserver(() => {
       this.resize();
       this.render();
@@ -81,6 +90,14 @@ export class QuiltRenderer {
   bindEvents() {
     this.canvas.addEventListener("pointerdown", (event) => {
       this.canvas.setPointerCapture(event.pointerId);
+      this.activePointers.set(event.pointerId, pointerPoint(event));
+      if (this.activePointers.size === 2) {
+        this.startRotationGesture();
+        return;
+      }
+      if (this.activePointers.size > 1) {
+        return;
+      }
       this.dragging = true;
       this.pointerDown = { x: event.clientX, y: event.clientY };
       this.lastPointer = { x: event.clientX, y: event.clientY };
@@ -93,6 +110,15 @@ export class QuiltRenderer {
     });
 
     this.canvas.addEventListener("pointermove", (event) => {
+      if (this.activePointers.has(event.pointerId)) {
+        this.activePointers.set(event.pointerId, pointerPoint(event));
+      }
+
+      if (this.rotationGesture) {
+        this.updateRotationGesture();
+        return;
+      }
+
       if (!this.dragging || !this.lastPointer) {
         return;
       }
@@ -141,6 +167,12 @@ export class QuiltRenderer {
 
     this.canvas.addEventListener("pointerup", (event) => {
       this.canvas.releasePointerCapture(event.pointerId);
+      if (this.rotationGesture) {
+        this.activePointers.delete(event.pointerId);
+        this.finishRotationGesture();
+        return;
+      }
+      this.activePointers.delete(event.pointerId);
       const start = this.pointerDown;
       const moved =
         start &&
@@ -173,6 +205,17 @@ export class QuiltRenderer {
         }
       }
 
+      this.dragging = false;
+      this.pointerDown = null;
+      this.lastPointer = null;
+      this.potentialSlide = null;
+    });
+
+    this.canvas.addEventListener("pointercancel", (event) => {
+      if (this.activePointers.has(event.pointerId)) {
+        this.activePointers.delete(event.pointerId);
+      }
+      this.finishRotationGesture();
       this.dragging = false;
       this.pointerDown = null;
       this.lastPointer = null;
@@ -292,6 +335,14 @@ export class QuiltRenderer {
     this.render();
   }
 
+  setFocusModel(model) {
+    this.selectedId = model?.primaryId ?? null;
+    this.searchMatches = new Set(model?.searchIds ?? []);
+    this.timelineFocusIds = new Set(model?.timelineIds ?? []);
+    this.timelineFocusRange = model?.timelineRange ?? null;
+    this.render();
+  }
+
   setTimelineFocus(summary) {
     this.timelineFocusIds = new Set(summary?.vertex_ids ?? []);
     this.timelineFocusRange = summary
@@ -321,11 +372,63 @@ export class QuiltRenderer {
     this.render();
   }
 
-  setRotationDegrees(degrees) {
-    const next = clamp(Number.isFinite(degrees) ? degrees : 0, -90, 90);
+  setRotationDegrees(degrees, { notify = false } = {}) {
+    const next = normalizeRotationDegrees(degrees);
     this.rotationDegrees = next;
     this.rotationRadians = (next * Math.PI) / 180;
+    if (notify) {
+      this.onRotationChange?.(next);
+    }
     this.render();
+  }
+
+  startRotationGesture() {
+    const pointers = [...this.activePointers.values()];
+    this.cancelCameraAnimation();
+    this.dragging = false;
+    this.pointerDown = null;
+    this.lastPointer = null;
+    this.potentialSlide = null;
+    if (this.slideState) {
+      this.finishSlide({ restoreCamera: true });
+    }
+    this.rotationGesture = {
+      anchorPointerId: [...this.activePointers.keys()][0],
+      rotatingPointerId: [...this.activePointers.keys()][1],
+      anchor: pointers[0],
+      start: pointers[1],
+      initialRotation: this.rotationDegrees,
+    };
+  }
+
+  updateRotationGesture() {
+    if (!this.rotationGesture) {
+      return;
+    }
+    const anchor = this.activePointers.get(this.rotationGesture.anchorPointerId);
+    const current = this.activePointers.get(this.rotationGesture.rotatingPointerId);
+    if (!anchor || !current) {
+      return;
+    }
+    this.setRotationDegrees(
+      anchoredRotationDegrees({
+        anchor,
+        start: this.rotationGesture.start,
+        current,
+        initialRotation: this.rotationGesture.initialRotation,
+      }),
+      { notify: true },
+    );
+  }
+
+  finishRotationGesture() {
+    this.rotationGesture = null;
+    if (this.activePointers.size === 1) {
+      const [point] = this.activePointers.values();
+      this.dragging = true;
+      this.pointerDown = point;
+      this.lastPointer = point;
+    }
   }
 
   exportInteractiveHtml({ title = "GeneaQuilt export", autoPrint = false } = {}) {
@@ -339,7 +442,7 @@ export class QuiltRenderer {
     });
   }
 
-  fit() {
+  fit({ animated = false } = {}) {
     if (!this.geometry) {
       return;
     }
@@ -349,23 +452,33 @@ export class QuiltRenderer {
       this.rotationRadians,
       sceneCenter(this.geometry),
     );
-    this.fitBounds(bounds);
+    this.fitBounds(bounds, { animated });
   }
 
-  fitBounds(bounds) {
+  fitBounds(bounds, { animated = false } = {}) {
     const fitWidth = bounds.width + FIT_PADDING_X * 2;
     const fitHeight = bounds.height + FIT_PADDING_Y * 2;
-    this.scale = clamp(
-      Math.min(this.width / fitWidth, this.height / fitHeight),
-      MIN_SCALE,
-      MAX_SCALE,
-    );
-    this.offsetX = this.width / 2 - (bounds.minX + bounds.width / 2) * this.scale;
-    this.offsetY = FIT_PADDING_Y - bounds.minY * this.scale;
+    const target = {
+      scale: clamp(
+        Math.min(this.width / fitWidth, this.height / fitHeight),
+        MIN_SCALE,
+        MAX_SCALE,
+      ),
+      offsetX: 0,
+      offsetY: 0,
+    };
+    target.offsetX = this.width / 2 - (bounds.minX + bounds.width / 2) * target.scale;
+    target.offsetY = FIT_PADDING_Y - bounds.minY * target.scale;
+    if (animated) {
+      this.animateCameraTo(target);
+      return;
+    }
+    this.cancelCameraAnimation();
+    this.applyCamera(target);
     this.render();
   }
 
-  fitToVertexIds(ids) {
+  fitToVertexIds(ids, { animated = false } = {}) {
     if (!this.geometry || !ids?.length) {
       return;
     }
@@ -378,7 +491,7 @@ export class QuiltRenderer {
     }
 
     const bounds = computeRotatedBounds(vertices, this.rotationRadians, sceneCenter(this.geometry));
-    this.fitBounds(bounds);
+    this.fitBounds(bounds, { animated });
   }
 
   zoomBy(multiplier) {
@@ -386,12 +499,14 @@ export class QuiltRenderer {
   }
 
   panBy(dx, dy) {
+    this.cancelCameraAnimation();
     this.offsetX += dx;
     this.offsetY += dy;
     this.render();
   }
 
   zoomAt(screenX, screenY, multiplier) {
+    this.cancelCameraAnimation();
     const world = this.screenToWorld(screenX, screenY);
     this.scale = clamp(this.scale * multiplier, MIN_SCALE, MAX_SCALE);
     const rotated = rotatePoint(world, sceneCenter(this.geometry), this.rotationRadians);
@@ -416,9 +531,48 @@ export class QuiltRenderer {
 
   centerOnWorldPoint(worldX, worldY) {
     const rotated = rotatePoint({ x: worldX, y: worldY }, sceneCenter(this.geometry), this.rotationRadians);
-    this.offsetX = this.width / 2 - rotated.x * this.scale;
-    this.offsetY = this.height / 2 - rotated.y * this.scale;
+    this.applyCamera({
+      scale: this.scale,
+      offsetX: this.width / 2 - rotated.x * this.scale,
+      offsetY: this.height / 2 - rotated.y * this.scale,
+    });
     this.render();
+  }
+
+  applyCamera(camera) {
+    this.scale = camera.scale;
+    this.offsetX = camera.offsetX;
+    this.offsetY = camera.offsetY;
+  }
+
+  animateCameraTo(target) {
+    this.cancelCameraAnimation();
+    const from = {
+      scale: this.scale,
+      offsetX: this.offsetX,
+      offsetY: this.offsetY,
+    };
+    const duration = 180;
+    const startedAt = performance.now();
+    const step = (now) => {
+      const progress = Math.min(1, (now - startedAt) / duration);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      this.applyCamera(interpolateCamera(from, target, eased));
+      this.render();
+      if (progress < 1) {
+        this.cameraAnimation = requestAnimationFrame(step);
+      } else {
+        this.cameraAnimation = null;
+      }
+    };
+    this.cameraAnimation = requestAnimationFrame(step);
+  }
+
+  cancelCameraAnimation() {
+    if (this.cameraAnimation != null) {
+      cancelAnimationFrame(this.cameraAnimation);
+      this.cameraAnimation = null;
+    }
   }
 
   hitTest(screenX, screenY) {
@@ -595,11 +749,11 @@ export class QuiltRenderer {
       const highlighted = this.highlightedVertices.has(vertex.id);
       const timelineFocused = this.timelineFocusIds.has(vertex.id);
       ctx.fillStyle = selected
-        ? "rgba(215, 59, 38, 0.9)"
+        ? "rgba(213, 82, 55, 0.92)"
         : highlighted
-          ? "rgba(11, 110, 116, 0.72)"
+          ? "rgba(0, 137, 123, 0.78)"
           : timelineFocused
-            ? "rgba(53, 85, 250, 0.72)"
+            ? "rgba(51, 107, 122, 0.78)"
             : vertex.kind === "family"
               ? this.palette.minimapFamily
               : this.palette.minimapPerson;
@@ -1070,58 +1224,54 @@ function computeBoundsFromRects(rects) {
 function rendererPalette(theme) {
   if (theme === "dark") {
     return {
-      paperGradientStart: "#1b2531",
-      paperGradientMiddle: "#131b24",
-      paperGradientEnd: "#18202a",
-      generationPerson: "rgba(151, 162, 171, 0.16)",
-      generationPersonDense: "rgba(151, 162, 171, 0.34)",
-      generationFamily: "rgba(197, 166, 123, 0.16)",
-      generationFamilyDense: "rgba(197, 166, 123, 0.28)",
-      grid: "rgba(212, 220, 228, 0.22)",
-      edgeDefault: "rgba(171, 183, 193, 0.74)",
-      edgeHighlightStroke: "rgba(245, 249, 255, 0.88)",
-      personDense: "rgba(152, 162, 173, 0.74)",
-      personText: "#edf2f7",
-      familyBaseFill: "rgba(31, 41, 53, 0.98)",
-      familyBaseStroke: "rgba(188, 168, 135, 0.88)",
-      familyBaseText: "#f3e1bf",
-      familyPatternStroke: "rgba(188, 168, 135, 0.22)",
-      minimapBackground: "rgba(14, 20, 28, 0.94)",
-      minimapBorder: "rgba(227, 234, 242, 0.14)",
-      minimapPersonBand: "rgba(87, 180, 189, 0.14)",
-      minimapFamilyBand: "rgba(214, 154, 83, 0.14)",
-      minimapFamily: "rgba(173, 179, 187, 0.48)",
-      minimapPerson: "rgba(116, 128, 140, 0.5)",
-      minimapViewportStroke: "rgba(255, 126, 110, 0.94)",
-      minimapViewportFill: "rgba(255, 126, 110, 0.12)",
+      paperColor: "#0f1d22",
+      generationPerson: "rgba(148, 163, 156, 0.13)",
+      generationPersonDense: "rgba(148, 163, 156, 0.3)",
+      generationFamily: "rgba(242, 184, 74, 0.16)",
+      generationFamilyDense: "rgba(242, 184, 74, 0.32)",
+      grid: "rgba(226, 232, 228, 0.18)",
+      edgeDefault: "rgba(175, 188, 181, 0.72)",
+      edgeHighlightStroke: "rgba(245, 249, 247, 0.86)",
+      personDense: "rgba(154, 169, 163, 0.72)",
+      personText: "#e9efeb",
+      familyBaseFill: "rgba(29, 41, 38, 0.98)",
+      familyBaseStroke: "rgba(242, 184, 74, 0.9)",
+      familyBaseText: "#f5dfb6",
+      familyPatternStroke: "rgba(242, 184, 74, 0.28)",
+      minimapBackground: "rgba(17, 24, 22, 0.95)",
+      minimapBorder: "rgba(226, 232, 228, 0.14)",
+      minimapPersonBand: "rgba(45, 212, 191, 0.11)",
+      minimapFamilyBand: "rgba(242, 184, 74, 0.14)",
+      minimapFamily: "rgba(173, 179, 174, 0.46)",
+      minimapPerson: "rgba(126, 141, 134, 0.48)",
+      minimapViewportStroke: "rgba(255, 122, 95, 0.96)",
+      minimapViewportFill: "rgba(255, 122, 95, 0.14)",
     };
   }
 
   return {
-    paperGradientStart: "#faf2e3",
-    paperGradientMiddle: "#f1e6d2",
-    paperGradientEnd: "#f8f1e4",
-    generationPerson: "rgba(120, 120, 120, 0.14)",
-    generationPersonDense: "rgba(160, 160, 160, 0.45)",
-    generationFamily: "rgba(170, 170, 170, 0.14)",
-    generationFamilyDense: "rgba(188, 188, 188, 0.48)",
-    grid: "rgba(120, 120, 120, 0.32)",
-    edgeDefault: "rgba(56, 63, 67, 0.78)",
+    paperColor: "#eef8fa",
+    generationPerson: "rgba(82, 96, 88, 0.12)",
+    generationPersonDense: "rgba(82, 96, 88, 0.32)",
+    generationFamily: "rgba(196, 127, 16, 0.14)",
+    generationFamilyDense: "rgba(196, 127, 16, 0.34)",
+    grid: "rgba(82, 96, 88, 0.22)",
+    edgeDefault: "rgba(55, 65, 61, 0.72)",
     edgeHighlightStroke: "rgba(255,255,255,0.88)",
-    personDense: "rgba(150, 150, 150, 0.72)",
-    personText: "#12181d",
-    familyBaseFill: "rgba(248, 245, 235, 0.98)",
-    familyBaseStroke: "rgba(124, 111, 83, 0.92)",
-    familyBaseText: "#2a261f",
-    familyPatternStroke: "rgba(124, 111, 83, 0.28)",
-    minimapBackground: "rgba(255, 251, 244, 0.92)",
-    minimapBorder: "rgba(29, 37, 45, 0.14)",
-    minimapPersonBand: "rgba(11, 110, 116, 0.08)",
-    minimapFamilyBand: "rgba(154, 93, 22, 0.1)",
-    minimapFamily: "rgba(120, 120, 120, 0.42)",
-    minimapPerson: "rgba(70, 78, 82, 0.42)",
-    minimapViewportStroke: "rgba(215, 59, 38, 0.92)",
-    minimapViewportFill: "rgba(215, 59, 38, 0.08)",
+    personDense: "rgba(82, 96, 88, 0.62)",
+    personText: "#17201d",
+    familyBaseFill: "rgba(255, 252, 245, 0.98)",
+    familyBaseStroke: "rgba(196, 127, 16, 0.92)",
+    familyBaseText: "#312a1f",
+    familyPatternStroke: "rgba(196, 127, 16, 0.26)",
+    minimapBackground: "rgba(250, 251, 248, 0.94)",
+    minimapBorder: "rgba(23, 32, 29, 0.14)",
+    minimapPersonBand: "rgba(0, 137, 123, 0.08)",
+    minimapFamilyBand: "rgba(196, 127, 16, 0.1)",
+    minimapFamily: "rgba(82, 96, 88, 0.36)",
+    minimapPerson: "rgba(82, 96, 88, 0.42)",
+    minimapViewportStroke: "rgba(213, 82, 55, 0.94)",
+    minimapViewportFill: "rgba(213, 82, 55, 0.1)",
   };
 }
 
@@ -1131,11 +1281,7 @@ function currentRendererPalette(ctx) {
 
 function drawPaper(ctx, width, height) {
   const palette = currentRendererPalette(ctx);
-  const gradient = ctx.createLinearGradient(0, 0, width, height);
-  gradient.addColorStop(0, palette.paperGradientStart);
-  gradient.addColorStop(0.5, palette.paperGradientMiddle);
-  gradient.addColorStop(1, palette.paperGradientEnd);
-  ctx.fillStyle = gradient;
+  ctx.fillStyle = palette.paperColor;
   ctx.fillRect(0, 0, width, height);
 }
 
@@ -1272,7 +1418,7 @@ function drawHighlightPaths(ctx, geometry, renderer) {
   ctx.save();
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
-  ctx.strokeStyle = "rgba(215, 59, 38, 0.9)";
+  ctx.strokeStyle = "rgba(213, 82, 55, 0.9)";
   ctx.lineWidth = 4.25 / renderer.scale;
 
   for (const connector of renderer.highlightConnectorColors.values()) {
@@ -1318,7 +1464,7 @@ function drawBringAndSlide(ctx, renderer) {
   for (const candidate of renderer.slideState.candidates) {
     const active = candidate.id === renderer.slideState.destinationId;
 
-    ctx.strokeStyle = active ? "rgba(80, 96, 250, 0.98)" : "rgba(80, 96, 250, 0.68)";
+    ctx.strokeStyle = active ? "rgba(0, 137, 123, 0.98)" : "rgba(0, 137, 123, 0.68)";
     ctx.lineWidth = (active ? 2.4 : 1.4) / renderer.scale;
     ctx.beginPath();
     ctx.moveTo(candidate.line.x1, candidate.line.y1);
@@ -1326,7 +1472,7 @@ function drawBringAndSlide(ctx, renderer) {
     ctx.stroke();
 
     ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
-    ctx.strokeStyle = active ? "rgba(80, 96, 250, 0.92)" : "rgba(29, 37, 45, 0.16)";
+    ctx.strokeStyle = active ? "rgba(0, 137, 123, 0.92)" : "rgba(23, 32, 29, 0.16)";
     ctx.lineWidth = 1 / renderer.scale;
     ctx.fillRect(candidate.overlay.x, candidate.overlay.y, candidate.overlay.width, candidate.overlay.height);
     ctx.strokeRect(
@@ -1336,18 +1482,18 @@ function drawBringAndSlide(ctx, renderer) {
       candidate.overlay.height,
     );
 
-    ctx.fillStyle = active ? "rgba(55, 64, 200, 1)" : "rgba(84, 92, 101, 0.94)";
+    ctx.fillStyle = active ? "rgba(0, 137, 123, 1)" : "rgba(82, 96, 88, 0.94)";
     ctx.font = '9px Georgia, "Times New Roman", serif';
     ctx.textBaseline = "top";
     ctx.fillText(candidate.relationLabel, candidate.overlay.x + 4 / renderer.scale, candidate.overlay.y + 3 / renderer.scale);
 
-    ctx.fillStyle = active ? "rgba(55, 64, 200, 1)" : "#1d252d";
+    ctx.fillStyle = active ? "rgba(0, 137, 123, 1)" : "#17201d";
     ctx.font = PERSON_FONT;
     ctx.textBaseline = "top";
     ctx.fillText(candidate.label, candidate.overlay.x + 4 / renderer.scale, candidate.overlay.y + 13 / renderer.scale);
   }
 
-  ctx.fillStyle = "rgba(80, 96, 250, 0.96)";
+  ctx.fillStyle = "rgba(0, 137, 123, 0.96)";
   ctx.beginPath();
   ctx.arc(renderer.slideState.cursor.x, renderer.slideState.cursor.y, 4 / renderer.scale, 0, Math.PI * 2);
   ctx.fill();
@@ -1380,9 +1526,9 @@ function drawEdges(ctx, geometry, renderer) {
     ctx.fillStyle = highlighted
       ? highlightFillColor(highlightColors)
       : timelineRelated
-        ? "rgba(53, 85, 250, 0.84)"
+        ? "rgba(51, 107, 122, 0.84)"
       : searchRelated
-        ? "rgba(154, 93, 22, 0.88)"
+        ? "rgba(196, 127, 16, 0.88)"
         : renderer.palette.edgeDefault;
     ctx.strokeStyle = renderer.palette.edgeHighlightStroke;
     ctx.lineWidth = highlighted ? 1.4 / renderer.scale : 0;
@@ -1460,11 +1606,11 @@ function drawPerson(ctx, vertex, renderer) {
 
   if (!worldFontVisible) {
     ctx.fillStyle = selected
-      ? "rgba(215, 59, 38, 0.9)"
+      ? "rgba(213, 82, 55, 0.9)"
       : timelineFocused
-        ? "rgba(53, 85, 250, 0.72)"
+        ? "rgba(51, 107, 122, 0.72)"
       : searched
-        ? "rgba(154, 93, 22, 0.72)"
+        ? "rgba(196, 127, 16, 0.72)"
         : highlighted
           ? highlightColor
           : renderer.palette.personDense;
@@ -1474,21 +1620,21 @@ function drawPerson(ctx, vertex, renderer) {
 
   if (searched || highlighted || selected || timelineFocused) {
     ctx.fillStyle = selected
-      ? "rgba(255, 236, 232, 0.92)"
+      ? "rgba(244, 223, 217, 0.92)"
       : timelineFocused
-        ? "rgba(232, 238, 255, 0.94)"
-      : "rgba(250, 244, 228, 0.88)";
+        ? "rgba(226, 240, 237, 0.94)"
+      : "rgba(243, 234, 210, 0.88)";
     ctx.fillRect(vertex.x - 2, vertex.y + 1, vertex.width + 4, vertex.height - 2);
   }
 
   ctx.fillStyle = selected
-    ? "#d73b26"
+    ? "#d55237"
     : timelineFocused
-      ? "#3555fa"
+      ? "#336b7a"
     : highlighted
       ? highlightColor
       : searched
-        ? "#9a5d16"
+        ? "#c47f10"
         : renderer.palette.personText;
   ctx.font = PERSON_FONT;
   ctx.textBaseline = "top";
@@ -1511,11 +1657,11 @@ function drawFamily(ctx, vertex, renderer) {
 
   if (selected || searched || highlighted || timelineFocused) {
     ctx.fillStyle = selected
-      ? "rgba(215, 59, 38, 0.28)"
+      ? "rgba(213, 82, 55, 0.28)"
       : timelineFocused
-        ? "rgba(53, 85, 250, 0.18)"
+        ? "rgba(51, 107, 122, 0.18)"
       : searched
-        ? "rgba(154, 93, 22, 0.2)"
+        ? "rgba(196, 127, 16, 0.2)"
         : highlightFillColorOverlay(highlightColors);
     ctx.fillRect(vertex.x, vertex.y, vertex.width, vertex.height);
   }
@@ -1524,7 +1670,7 @@ function drawFamily(ctx, vertex, renderer) {
     selected
       ? "rgba(255,255,255,0.94)"
       : timelineFocused
-        ? "rgba(53, 85, 250, 0.94)"
+        ? "rgba(51, 107, 122, 0.94)"
       : searched
         ? "rgba(255, 244, 226, 0.94)"
         : highlighted
@@ -1542,7 +1688,7 @@ function drawFamily(ctx, vertex, renderer) {
       selected
         ? "white"
         : timelineFocused
-          ? "#3555fa"
+          ? "#336b7a"
           : highlighted
             ? highlightColor
             : renderer.palette.familyBaseText;
@@ -1658,6 +1804,21 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
+export function anchoredRotationDegrees({ anchor, start, current, initialRotation = 0 }) {
+  const startAngle = Math.atan2(start.y - anchor.y, start.x - anchor.x);
+  const currentAngle = Math.atan2(current.y - anchor.y, current.x - anchor.x);
+  const deltaDegrees = ((currentAngle - startAngle) * 180) / Math.PI;
+  return normalizeRotationDegrees(initialRotation + deltaDegrees);
+}
+
+export function normalizeRotationDegrees(value) {
+  return clamp(Number.isFinite(value) ? value : 0, -90, 90);
+}
+
+function pointerPoint(event) {
+  return { x: event.clientX, y: event.clientY };
+}
+
 function buildSlideCandidate(direction, focus, actual, candidate, index, total) {
   const angle = Math.PI / (total + 1);
   const i = index + 1;
@@ -1742,50 +1903,50 @@ function lerp(a, b, u) {
 
 function highlightStrokeColor(colorIndices) {
   if (!colorIndices?.length) {
-    return "rgba(215, 59, 38, 0.9)";
+    return "rgba(213, 82, 55, 0.9)";
   }
   if (colorIndices.length > 1) {
-    return "rgba(65, 51, 120, 0.96)";
+    return "rgba(51, 107, 122, 0.96)";
   }
   return hexToRgba(HIGHLIGHT_COLORS[colorIndices[0] % HIGHLIGHT_COLORS.length], 0.94);
 }
 
 function highlightConnectorStrokeColor(colorIndices) {
   if (!colorIndices?.length) {
-    return "rgba(215, 59, 38, 0.45)";
+    return "rgba(213, 82, 55, 0.45)";
   }
   if (colorIndices.length > 1) {
-    return "rgba(65, 51, 120, 0.45)";
+    return "rgba(51, 107, 122, 0.45)";
   }
   return hexToRgba(HIGHLIGHT_COLORS[colorIndices[0] % HIGHLIGHT_COLORS.length], 0.45);
 }
 
 function highlightFillColor(colorIndices) {
   if (!colorIndices?.length) {
-    return "rgba(11, 110, 116, 0.84)";
+    return "rgba(0, 137, 123, 0.84)";
   }
   if (colorIndices.length > 1) {
-    return "rgba(90, 76, 170, 0.86)";
+    return "rgba(51, 107, 122, 0.86)";
   }
   return hexToRgba(HIGHLIGHT_COLORS[colorIndices[0] % HIGHLIGHT_COLORS.length], 0.84);
 }
 
 function highlightFillColorOverlay(colorIndices) {
   if (!colorIndices?.length) {
-    return "rgba(11, 110, 116, 0.18)";
+    return "rgba(0, 137, 123, 0.18)";
   }
   if (colorIndices.length > 1) {
-    return "rgba(90, 76, 170, 0.18)";
+    return "rgba(51, 107, 122, 0.18)";
   }
   return hexToRgba(HIGHLIGHT_COLORS[colorIndices[0] % HIGHLIGHT_COLORS.length], 0.18);
 }
 
 function highlightTextColor(colorIndices) {
   if (!colorIndices?.length) {
-    return "#0b6e74";
+    return "#00897b";
   }
   if (colorIndices.length > 1) {
-    return "#4a3c91";
+    return "#336b7a";
   }
   return HIGHLIGHT_COLORS[colorIndices[0] % HIGHLIGHT_COLORS.length];
 }
@@ -1856,23 +2017,21 @@ function buildInteractiveHtmlDocument(renderer, { title, autoPrint }) {
     <style>
       :root {
         color-scheme: light;
-        --paper: #f7efe1;
-        --panel: rgba(255, 251, 244, 0.92);
-        --line: rgba(29, 37, 45, 0.14);
-        --ink: #1d252d;
-        --muted: #67727d;
-        --accent: #d73b26;
+        --paper: #eef2ef;
+        --panel: #ffffff;
+        --line: #d7ded8;
+        --ink: #17201d;
+        --muted: #62706a;
+        --accent: #00897b;
       }
 
       * { box-sizing: border-box; }
       body {
         margin: 0;
         min-height: 100vh;
-        font-family: Georgia, "Times New Roman", serif;
+        font-family: "Avenir Next", Avenir, "Segoe UI", Helvetica, Arial, sans-serif;
         color: var(--ink);
-        background:
-          radial-gradient(circle at top left, rgba(215, 59, 38, 0.1), transparent 34%),
-          linear-gradient(160deg, #f3eadb, #efe4d0 60%, #f9f3e8);
+        background: var(--paper);
       }
 
       .page {
@@ -1883,10 +2042,9 @@ function buildInteractiveHtmlDocument(renderer, { title, autoPrint }) {
 
       .hero, .shell {
         border: 1px solid var(--line);
-        border-radius: 24px;
+        border-radius: 8px;
         background: var(--panel);
-        backdrop-filter: blur(12px);
-        box-shadow: 0 24px 60px rgba(31, 41, 48, 0.12);
+        box-shadow: 0 10px 28px rgba(23, 32, 29, 0.08);
       }
 
       .hero {
@@ -1919,12 +2077,16 @@ function buildInteractiveHtmlDocument(renderer, { title, autoPrint }) {
 
       button {
         border: 1px solid var(--line);
-        border-radius: 999px;
-        padding: 10px 14px;
-        background: rgba(255, 255, 255, 0.88);
+        border-radius: 6px;
+        padding: 8px 12px;
+        background: #f8faf7;
         color: var(--ink);
         font: inherit;
         cursor: pointer;
+      }
+
+      button:hover {
+        border-color: var(--accent);
       }
 
       .field {
@@ -1937,9 +2099,9 @@ function buildInteractiveHtmlDocument(renderer, { title, autoPrint }) {
 
       .stage {
         border: 1px solid var(--line);
-        border-radius: 20px;
+        border-radius: 8px;
         overflow: hidden;
-        background: rgba(255, 255, 255, 0.6);
+        background: #fbfef9;
         cursor: grab;
       }
 
@@ -2139,16 +2301,11 @@ function buildExportSvgMarkup(renderer, title) {
   role="img"
 >
   <defs>
-    <linearGradient id="paper-gradient" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#faf2e3" />
-      <stop offset="50%" stop-color="#f1e6d2" />
-      <stop offset="100%" stop-color="#f8f1e4" />
-    </linearGradient>
     <pattern id="family-stripe-pattern" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-      <line x1="0" y1="0" x2="0" y2="6" stroke="rgba(124, 111, 83, 0.28)" stroke-width="1" />
+      <line x1="0" y1="0" x2="0" y2="6" stroke="rgba(196, 127, 16, 0.24)" stroke-width="1" />
     </pattern>
   </defs>
-  <rect x="${formatExportNumber(viewBox.minX)}" y="${formatExportNumber(viewBox.minY)}" width="${formatExportNumber(viewBox.width)}" height="${formatExportNumber(viewBox.height)}" fill="url(#paper-gradient)" />
+  <rect x="${formatExportNumber(viewBox.minX)}" y="${formatExportNumber(viewBox.minY)}" width="${formatExportNumber(viewBox.width)}" height="${formatExportNumber(viewBox.height)}" fill="#eef8fa" />
   <g id="snapshot-viewport">
     <g id="snapshot-rotation" transform="rotate(${formatExportNumber(renderer.rotationDegrees)} ${formatExportNumber(center.x)} ${formatExportNumber(center.y)})">
       ${buildExportGenerationMarkup(geometry)}
@@ -2167,12 +2324,12 @@ function buildExportGenerationMarkup(geometry) {
       const parts = [];
       if (generation.personBand) {
         parts.push(
-          `<rect x="${formatExportNumber(generation.personBand.x - 1)}" y="${formatExportNumber(generation.personBand.y)}" width="${formatExportNumber(generation.personBand.width + 2)}" height="${formatExportNumber(generation.personBand.height)}" fill="rgba(120, 120, 120, 0.14)" />`,
+          `<rect x="${formatExportNumber(generation.personBand.x - 1)}" y="${formatExportNumber(generation.personBand.y)}" width="${formatExportNumber(generation.personBand.width + 2)}" height="${formatExportNumber(generation.personBand.height)}" fill="rgba(82, 96, 88, 0.12)" />`,
         );
       }
       if (generation.familyBand) {
         parts.push(
-          `<rect x="${formatExportNumber(generation.familyBand.x)}" y="${formatExportNumber(generation.familyBand.y - 1)}" width="${formatExportNumber(generation.familyBand.width)}" height="${formatExportNumber(generation.familyBand.height + 2)}" fill="rgba(170, 170, 170, 0.14)" />`,
+          `<rect x="${formatExportNumber(generation.familyBand.x)}" y="${formatExportNumber(generation.familyBand.y - 1)}" width="${formatExportNumber(generation.familyBand.width)}" height="${formatExportNumber(generation.familyBand.height + 2)}" fill="rgba(196, 127, 16, 0.12)" />`,
         );
       }
       return parts.join("");
@@ -2188,18 +2345,18 @@ function buildExportGridMarkup(geometry, renderer, ranges) {
         const range = ranges.personLookup.get(vertex.id);
         const minX = Math.min(vertex.x, range?.min ?? vertex.x);
         const maxX = Math.max(vertex.x + vertex.width, range?.max ?? vertex.x + vertex.width);
-        const top = `<line x1="${formatExportNumber(minX)}" y1="${formatExportNumber(vertex.y)}" x2="${formatExportNumber(maxX)}" y2="${formatExportNumber(vertex.y)}" stroke="rgba(120, 120, 120, 0.32)" stroke-width="1" />`;
+        const top = `<line x1="${formatExportNumber(minX)}" y1="${formatExportNumber(vertex.y)}" x2="${formatExportNumber(maxX)}" y2="${formatExportNumber(vertex.y)}" stroke="rgba(82, 96, 88, 0.22)" stroke-width="1" />`;
         const bottom = range
           ? ""
-          : `<line x1="${formatExportNumber(vertex.x)}" y1="${formatExportNumber(vertex.y + vertex.height)}" x2="${formatExportNumber(vertex.x + vertex.width)}" y2="${formatExportNumber(vertex.y + vertex.height)}" stroke="rgba(120, 120, 120, 0.32)" stroke-width="1" />`;
+          : `<line x1="${formatExportNumber(vertex.x)}" y1="${formatExportNumber(vertex.y + vertex.height)}" x2="${formatExportNumber(vertex.x + vertex.width)}" y2="${formatExportNumber(vertex.y + vertex.height)}" stroke="rgba(82, 96, 88, 0.22)" stroke-width="1" />`;
         return `${top}${bottom}`;
       }
 
       const range = ranges.familyLookup.get(vertex.id);
       const minY = Math.min(vertex.y, range?.min ?? vertex.y);
       const maxY = Math.max(vertex.y + vertex.height, range?.max ?? vertex.y + vertex.height);
-      return `<line x1="${formatExportNumber(vertex.x)}" y1="${formatExportNumber(minY)}" x2="${formatExportNumber(vertex.x)}" y2="${formatExportNumber(maxY)}" stroke="rgba(120, 120, 120, 0.32)" stroke-width="1" />
-<line x1="${formatExportNumber(vertex.x + vertex.width)}" y1="${formatExportNumber(minY)}" x2="${formatExportNumber(vertex.x + vertex.width)}" y2="${formatExportNumber(maxY)}" stroke="rgba(120, 120, 120, 0.32)" stroke-width="1" />`;
+      return `<line x1="${formatExportNumber(vertex.x)}" y1="${formatExportNumber(minY)}" x2="${formatExportNumber(vertex.x)}" y2="${formatExportNumber(maxY)}" stroke="rgba(82, 96, 88, 0.22)" stroke-width="1" />
+<line x1="${formatExportNumber(vertex.x + vertex.width)}" y1="${formatExportNumber(minY)}" x2="${formatExportNumber(vertex.x + vertex.width)}" y2="${formatExportNumber(maxY)}" stroke="rgba(82, 96, 88, 0.22)" stroke-width="1" />`;
     })
     .join("");
 }
@@ -2262,9 +2419,9 @@ function buildExportEdgeMarkup(geometry, renderer) {
       const fill = highlighted
         ? highlightFillColor(highlightColors)
         : timelineRelated
-          ? "rgba(53, 85, 250, 0.84)"
+          ? "rgba(51, 107, 122, 0.84)"
           : searchRelated
-            ? "rgba(154, 93, 22, 0.88)"
+            ? "rgba(196, 127, 16, 0.88)"
             : "rgba(56, 63, 67, 0.78)";
       const size = Math.min(Math.min(edge.width, edge.height) * 0.62, 8.5);
       const x = edge.centerX - size / 2;
@@ -2305,20 +2462,20 @@ function buildExportPersonMarkup(vertex, renderer, alpha) {
   const timelineFocused = renderer.timelineFocusIds.has(vertex.id);
   const highlightColor = highlightTextColor(highlightColors);
   const background = selected
-    ? "rgba(255, 236, 232, 0.92)"
+    ? "rgba(244, 223, 217, 0.92)"
     : timelineFocused
-      ? "rgba(232, 238, 255, 0.94)"
+      ? "rgba(226, 240, 237, 0.94)"
       : searched || highlighted
-        ? "rgba(250, 244, 228, 0.88)"
+        ? "rgba(243, 234, 210, 0.88)"
         : null;
   const fill = selected
-    ? "#d73b26"
+    ? "#d55237"
     : timelineFocused
-      ? "#3555fa"
+      ? "#336b7a"
       : highlighted
         ? highlightColor
         : searched
-          ? "#9a5d16"
+          ? "#c47f10"
           : "#12181d";
 
   return `${background ? `<rect x="${formatExportNumber(vertex.x - 2)}" y="${formatExportNumber(vertex.y + 1)}" width="${formatExportNumber(vertex.width + 4)}" height="${formatExportNumber(vertex.height - 2)}" fill="${background}" opacity="${formatExportNumber(alpha)}" />` : ""}
@@ -2333,33 +2490,33 @@ function buildExportFamilyMarkup(vertex, renderer, alpha) {
   const timelineFocused = renderer.timelineFocusIds.has(vertex.id);
   const highlightColor = highlightTextColor(highlightColors);
   const overlay = selected
-    ? "rgba(215, 59, 38, 0.28)"
+    ? "rgba(213, 82, 55, 0.28)"
     : timelineFocused
-      ? "rgba(53, 85, 250, 0.18)"
+      ? "rgba(51, 107, 122, 0.18)"
       : searched
-        ? "rgba(154, 93, 22, 0.2)"
+        ? "rgba(196, 127, 16, 0.2)"
         : highlighted
           ? highlightFillColorOverlay(highlightColors)
           : null;
   const stroke = selected
     ? "rgba(255,255,255,0.94)"
     : timelineFocused
-      ? "rgba(53, 85, 250, 0.94)"
+      ? "rgba(51, 107, 122, 0.94)"
       : searched
         ? "rgba(255, 244, 226, 0.94)"
         : highlighted
           ? highlightStrokeColor(highlightColors)
-          : FAMILY_BASE_STROKE;
+          : renderer.palette.familyBaseStroke;
   const labelFill = selected
     ? "white"
     : timelineFocused
-      ? "#3555fa"
+      ? "#336b7a"
       : highlighted
         ? highlightColor
-        : FAMILY_BASE_TEXT;
+        : renderer.palette.familyBaseText;
   const showLabel = renderer.expandedNames || selected || searched || timelineFocused || highlighted;
 
-  return `<rect x="${formatExportNumber(vertex.x)}" y="${formatExportNumber(vertex.y)}" width="${formatExportNumber(vertex.width)}" height="${formatExportNumber(vertex.height)}" fill="${FAMILY_BASE_FILL}" opacity="${formatExportNumber(alpha)}" />
+  return `<rect x="${formatExportNumber(vertex.x)}" y="${formatExportNumber(vertex.y)}" width="${formatExportNumber(vertex.width)}" height="${formatExportNumber(vertex.height)}" fill="${renderer.palette.familyBaseFill}" opacity="${formatExportNumber(alpha)}" />
 <rect x="${formatExportNumber(vertex.x)}" y="${formatExportNumber(vertex.y)}" width="${formatExportNumber(vertex.width)}" height="${formatExportNumber(vertex.height)}" fill="url(#family-stripe-pattern)" opacity="${formatExportNumber(alpha)}" />
 ${overlay ? `<rect x="${formatExportNumber(vertex.x)}" y="${formatExportNumber(vertex.y)}" width="${formatExportNumber(vertex.width)}" height="${formatExportNumber(vertex.height)}" fill="${overlay}" opacity="${formatExportNumber(alpha)}" />` : ""}
 <rect x="${formatExportNumber(vertex.x)}" y="${formatExportNumber(vertex.y)}" width="${formatExportNumber(vertex.width)}" height="${formatExportNumber(vertex.height)}" fill="none" stroke="${stroke}" stroke-width="1" opacity="${formatExportNumber(alpha)}" />
