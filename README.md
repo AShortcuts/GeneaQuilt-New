@@ -62,6 +62,17 @@ npm run build
 
 The generated Wasm package is written to `web/pkg` and is not tracked in git.
 
+## Cloudflare Pages
+
+Use these build settings:
+
+- Framework preset: `Vite` if available, otherwise `None`
+- Root directory: `web`
+- Build command: `npm run build:cloudflare`
+- Build output directory: `dist`
+
+Cloudflare's build image may not include `wasm-pack` by default. The `build:cloudflare` script installs it with Cargo when missing, then runs the normal production build.
+
 ## Current status
 
 The app can load GEDCOM text or files, build a quilt layout, inspect people and families, search across names and file details, brush timeline ranges, focus selections, rotate/fit/zoom the canvas, and export snapshots.
