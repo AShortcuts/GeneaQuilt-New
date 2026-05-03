@@ -1,0 +1,19 @@
+{
+  "name": "geneaquilt-wasm",
+  "type": "module",
+  "collaborators": [
+    "OpenAI Codex"
+  ],
+  "version": "0.1.0",
+  "license": "BSD-3-Clause",
+  "files": [
+    "geneaquilt_wasm_bg.wasm",
+    "geneaquilt_wasm.js",
+    "geneaquilt_wasm.d.ts"
+  ],
+  "main": "geneaquilt_wasm.js",
+  "types": "geneaquilt_wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
