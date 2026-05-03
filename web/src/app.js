@@ -1,5 +1,5 @@
 import { loadEngineModule } from "./engine.js";
-import { appSurfaceState, shouldFitAfterSourceLoad } from "./appState.js";
+import { appSurfaceState, normalizeSurfaceFinish, shouldFitAfterSourceLoad } from "./appState.js";
 import { QuiltRenderer } from "./quiltRenderer.js";
 
 const sampleGedcom = `0 @I1@ INDI
@@ -48,22 +48,31 @@ const sampleGedcom = `0 @I1@ INDI
 `;
 
 const THEME_STORAGE_KEY = "geneaquilt-theme";
+const SURFACE_FINISH_STORAGE_KEY = "geneaquilt-surface-finish";
 
 export async function createApp() {
   const wasm = await loadEngineModule();
   const page = document.createElement("main");
   page.className = "page";
   let theme = getInitialTheme();
+  let surfaceFinish = getInitialSurfaceFinish();
   document.documentElement.dataset.theme = theme;
+  document.documentElement.dataset.surface = surfaceFinish;
   document.documentElement.style.colorScheme = theme;
 
   page.innerHTML = `
     <section class="hero">
       <div class="hero-topline">
         <div class="eyebrow">GeneaQuilt for the web</div>
-        <button class="button icon-button theme-toggle-button" type="button" aria-pressed="${theme === "dark" ? "true" : "false"}" aria-label="${theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}">
-          ${iconSvg(theme === "dark" ? "sun" : "moon")}
-        </button>
+        <div class="appearance-controls" aria-label="Appearance">
+          <div class="finish-toggle" role="group" aria-label="Surface finish">
+            <button class="finish-option" type="button" data-finish-option="glossy" aria-pressed="${surfaceFinish === "glossy" ? "true" : "false"}">Glossy</button>
+            <button class="finish-option" type="button" data-finish-option="matte" aria-pressed="${surfaceFinish === "matte" ? "true" : "false"}">Matte</button>
+          </div>
+          <button class="button icon-button theme-toggle-button" type="button" aria-pressed="${theme === "dark" ? "true" : "false"}" aria-label="${theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}">
+            ${iconSvg(theme === "dark" ? "sun" : "moon")}
+          </button>
+        </div>
       </div>
       <div class="hero-grid">
         <div>
@@ -267,6 +276,7 @@ export async function createApp() {
   const exportHtmlButton = page.querySelector(".export-html-button");
   const printExportButton = page.querySelector(".print-export-button");
   const themeToggleButton = page.querySelector(".theme-toggle-button");
+  const finishButtons = [...page.querySelectorAll("[data-finish-option]")];
   const layersPill = page.querySelector(".layers-pill");
   const countsPill = page.querySelector(".counts-pill");
   const timelineSummary = page.querySelector(".timeline-summary");
@@ -331,6 +341,15 @@ export async function createApp() {
     themeToggleButton.setAttribute("aria-pressed", String(theme === "dark"));
     renderer.setTheme(theme);
     renderTimeline(timeline);
+  }
+
+  function applySurfaceFinish(nextFinish) {
+    surfaceFinish = normalizeSurfaceFinish(nextFinish);
+    document.documentElement.dataset.surface = surfaceFinish;
+    localStorage.setItem(SURFACE_FINISH_STORAGE_KEY, surfaceFinish);
+    for (const button of finishButtons) {
+      button.setAttribute("aria-pressed", String(button.dataset.finishOption === surfaceFinish));
+    }
   }
 
   function setSourceExpanded(expanded) {
@@ -1002,6 +1021,11 @@ export async function createApp() {
   themeToggleButton.addEventListener("click", () => {
     applyTheme(theme === "dark" ? "light" : "dark");
   });
+  for (const button of finishButtons) {
+    button.addEventListener("click", () => {
+      applySurfaceFinish(button.dataset.finishOption);
+    });
+  }
   fileInput.addEventListener("change", async (event) => {
     const file = event.target.files?.[0];
     if (!file) {
@@ -1059,6 +1083,7 @@ export async function createApp() {
   renderHighlightStack();
   renderTimeline(null);
   applyTheme(theme);
+  applySurfaceFinish(surfaceFinish);
   applyRotation(0);
   syncSurfaceState();
   return page;
@@ -1141,6 +1166,10 @@ function getInitialTheme() {
     return stored;
   }
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function getInitialSurfaceFinish() {
+  return normalizeSurfaceFinish(localStorage.getItem(SURFACE_FINISH_STORAGE_KEY));
 }
 
 function timelinePalette(theme) {

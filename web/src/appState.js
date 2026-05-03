@@ -21,3 +21,7 @@ export function appSurfaceState({ hasScene, hasSelection }) {
 export function shouldFitAfterSourceLoad(sourceKind) {
   return sourceKind === "sample";
 }
+
+export function normalizeSurfaceFinish(value) {
+  return value === "matte" ? "matte" : "glossy";
+}

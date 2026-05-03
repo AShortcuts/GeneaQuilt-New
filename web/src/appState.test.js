@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { appSurfaceState, shouldFitAfterSourceLoad } from "./appState.js";
+import { appSurfaceState, normalizeSurfaceFinish, shouldFitAfterSourceLoad } from "./appState.js";
 
 test("appSurfaceState hides data panels until a quilt is loaded", () => {
   assert.deepEqual(appSurfaceState({ hasScene: false, hasSelection: false }), {
@@ -37,4 +37,11 @@ test("sample tree loads refit after the quilt panel is revealed", () => {
   assert.equal(shouldFitAfterSourceLoad("sample"), true);
   assert.equal(shouldFitAfterSourceLoad("file"), false);
   assert.equal(shouldFitAfterSourceLoad("manual"), false);
+});
+
+test("normalizeSurfaceFinish keeps glossy as the safe default", () => {
+  assert.equal(normalizeSurfaceFinish("glossy"), "glossy");
+  assert.equal(normalizeSurfaceFinish("matte"), "matte");
+  assert.equal(normalizeSurfaceFinish("unknown"), "glossy");
+  assert.equal(normalizeSurfaceFinish(null), "glossy");
 });
