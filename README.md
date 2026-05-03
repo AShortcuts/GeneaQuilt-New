@@ -1,42 +1,69 @@
 # GeneaQuilt Web Port
 
-This repository is the starting point for a website-first port of the original Java GeneaQuilt application.
+GeneaQuilt Web is a browser-first implementation of the GeneaQuilt genealogy visualization technique. It reads GEDCOM data, lays out people and families as an interactive quilt, and provides search, timeline, minimap, selection, focus, rotation, and export tools in a modern web interface.
 
-The target product is a browser application, not a desktop wrapper. Rust is used for the graph model, layout, traversal, search, and future Wasm execution path. The browser owns rendering, input, accessibility, and the surrounding product UI.
+This project builds on the ideas from the original Java GeneaQuilt application: <https://github.com/jdfekete/geneaquilt>.
 
-## Why this shape
+## Why GeneaQuilt
 
-The original Java code mixes data objects with Piccolo2D scene nodes and Swing controls. That works on desktop, but it is the wrong unit of reuse for the web. The useful parts to preserve are:
+Traditional family trees become hard to read when a genealogy includes many siblings, remarriages, large branches, or overlapping generations. GeneaQuilt uses a matrix-like layout instead:
 
-- GEDCOM ingestion into a bipartite `individual <-> family` graph
-- Generation and ordering algorithms
-- Traversal-driven highlight and trace behavior
-- DOI-based isolate/filter behavior
-- Overview and timeline features
+- people and families are represented as two connected vertex types
+- generations are arranged into readable bands
+- relationship links stay compact instead of becoming a sprawling tree
+- dense genealogies can be scanned through overview, timeline, search, and focus controls
+- selection and tracing reveal parents, spouses, children, predecessors, and successors without redrawing the whole structure
 
-The parts not worth porting literally are:
+The result is especially useful when the question is not just "who is this person's parent?", but "how does this whole family network fit together?"
 
-- Swing menus and desktop UI glue
-- Piccolo2D scene graph ownership inside domain objects
-- Graphviz subprocess fallback for layer computation
-- `VertexOrder.java`, which is unfinished and not the main ordering path
+## Strengths of this web port
+
+The original project is a Java/Swing and Piccolo2D desktop application. This port keeps the core visualization model but reshapes the implementation for the browser.
+
+- Browser-native use: run the viewer locally in a web browser without a Java desktop app shell.
+- Rust/Wasm core: GEDCOM parsing, graph modeling, search, timeline summaries, DOI/focus logic, and layout live in deterministic Rust crates with a thin WebAssembly bridge.
+- Modern interaction surface: Canvas rendering supports pan, zoom, rotation, minimap navigation, search highlighting, selection details, timeline brushing, focus isolation, and Bring-and-Slide navigation.
+- Cleaner architecture: domain data, layout computation, Wasm bindings, and UI rendering are separated instead of coupling graph objects directly to scene-graph nodes.
+- Export workflow: the web UI can export an interactive HTML snapshot or open a print/PDF-ready view.
+- Testable modules: layout, focus, app-state, gesture, and graph behavior are covered through Rust and JavaScript tests rather than being embedded only in desktop UI behavior.
+- Web product UI: file loading, controls, details, timeline, and export actions are organized as a practical browser workspace with light and dark themes.
+
+## What carries over from the original
+
+The original GeneaQuilt README describes the technique as a diagonally-filled matrix for large genealogies, with overview, timeline, search/filtering, and Bring-and-Slide interaction. Those are the important ideas preserved here.
+
+This repository does not attempt to port Swing menus, Piccolo2D node classes, Eclipse project setup, or the Graphviz subprocess fallback directly. Those were useful for the Java desktop implementation, but they are not the right boundaries for a web application.
 
 ## Repository layout
 
-- `docs/architecture.md`: recommended system design for the website port
-- `docs/source-mapping.md`: mapping from the original Java packages to the new modules
-- `crates/geneaquilt-core`: Rust domain model and traversal/search primitives
-- `crates/geneaquilt-layout`: Rust layout engine for layers and ordering
-- `crates/geneaquilt-wasm`: browser-facing bridge surface for future Wasm exports
-- `web/`: Vite website shell
+- `crates/geneaquilt-core`: GEDCOM parsing, graph model, selection, DOI/focus, search, and timeline logic
+- `crates/geneaquilt-layout`: generation ranking, ordering, layout auditing, and packed quilt layout output
+- `crates/geneaquilt-wasm`: WebAssembly bridge exposed to the browser
+- `web/`: Vite browser app, Canvas renderer, controls, timeline, minimap, export, and UI state
+- `docs/architecture.md`: design rationale for the browser/Rust split
+- `docs/source-mapping.md`: mapping from original Java concepts to this repo's modules
 
-## Immediate plan
+## Running the web app
 
-1. Implement GEDCOM import into `geneaquilt-core`
-2. Port generation assignment and layer ordering into `geneaquilt-layout`
-3. Add real GEDCOM parsing and packed layout output to `geneaquilt-wasm`
-4. Build the browser renderer around culling, level-of-detail, and fast hit testing
+```sh
+cd web
+npm install
+npm run dev
+```
+
+`npm run dev` rebuilds the Wasm package first, then starts Vite.
+
+For a production build:
+
+```sh
+cd web
+npm run build
+```
+
+The generated Wasm package is written to `web/pkg` and is not tracked in git.
 
 ## Current status
 
-This commit establishes the architecture, the Rust workspace scaffold, and a Vite-based web shell. It does not yet parse GEDCOM or render the quilt.
+The app can load GEDCOM text or files, build a quilt layout, inspect people and families, search across names and file details, brush timeline ranges, focus selections, rotate/fit/zoom the canvas, and export snapshots.
+
+The implementation is still a port, not a claim of full feature parity with every behavior of the original Java application. The emphasis is on preserving the useful visualization model while making the system easier to run, test, maintain, and evolve as a web product.
