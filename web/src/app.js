@@ -1,4 +1,5 @@
 import { loadEngineModule } from "./engine.js";
+import { appSurfaceState, shouldFitAfterSourceLoad } from "./appState.js";
 import { QuiltRenderer } from "./quiltRenderer.js";
 
 const sampleGedcom = `0 @I1@ INDI
@@ -50,7 +51,6 @@ const THEME_STORAGE_KEY = "geneaquilt-theme";
 
 export async function createApp() {
   const wasm = await loadEngineModule();
-  const status = JSON.parse(wasm.engine_status_json());
   const page = document.createElement("main");
   page.className = "page";
   let theme = getInitialTheme();
@@ -61,22 +61,16 @@ export async function createApp() {
     <section class="hero">
       <div class="hero-topline">
         <div class="eyebrow">GeneaQuilt for the web</div>
-        <button class="button theme-toggle-button" type="button" aria-pressed="${theme === "dark" ? "true" : "false"}">
-          ${theme === "dark" ? "Light mode" : "Dark mode"}
+        <button class="button icon-button theme-toggle-button" type="button" aria-pressed="${theme === "dark" ? "true" : "false"}" aria-label="${theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}">
+          ${iconSvg(theme === "dark" ? "sun" : "moon")}
         </button>
       </div>
       <div class="hero-grid">
         <div>
           <h1>GEDCOM in, quilt out.</h1>
           <p class="lede">
-            This version keeps the genealogy engine in Rust and renders the quilt directly in the browser.
-            It already supports file import, zooming, panning, selection, tracing, search, and DOI-based isolation.
+            Open a family tree file, explore the quilt, and follow relationships without installing anything.
           </p>
-        </div>
-        <div class="hero-card">
-          <div class="hero-stat"><span>Parser</span><strong>${status.parser_ready ? "ready" : "offline"}</strong></div>
-          <div class="hero-stat"><span>Layout</span><strong>${status.layout_ready ? "ready" : "offline"}</strong></div>
-          <div class="hero-stat"><span>Target</span><strong>${status.website_target ? "browser" : "unknown"}</strong></div>
         </div>
       </div>
     </section>
@@ -89,9 +83,13 @@ export async function createApp() {
           </div>
           <label class="button button-file">
             <input type="file" accept=".ged,.gedcom,.txt" />
+            ${iconSvg("upload")}
             <span>Load file</span>
           </label>
         </div>
+        <button class="button load-default-button" type="button">
+          <span>${iconSvg("folder-open")}Load Sample Family Tree</span>
+        </button>
         <button class="source-toggle" type="button" aria-expanded="false">
           <span>GEDCOM input</span>
           <strong>Expand</strong>
@@ -100,22 +98,21 @@ export async function createApp() {
           <textarea spellcheck="false"></textarea>
         </div>
         <div class="row-actions">
-          <button class="button load-default-button" type="button">
-            <span>Load default GEDCOM</span>
-            <strong>Built-in demo tree</strong>
-          </button>
           <label class="field ranker-field">
-            <span>Ranker</span>
+            <span>Layout style</span>
             <select class="ranker-select">
-              <option value="original">Original</option>
-              <option value="v2">V2 experimental</option>
+              <option value="original">Standard</option>
+              <option value="v2">Experimental</option>
             </select>
           </label>
-          <button class="button button-primary analyze-button">Build quilt</button>
-          <button class="button fit-button" type="button">Fit view</button>
-          <button class="button zoom-in-button" type="button">Zoom in</button>
-          <button class="button zoom-out-button" type="button">Zoom out</button>
-          <button class="button expand-button" type="button">Expand names</button>
+          <button class="button button-primary analyze-button">${iconSvg("sparkles")}Build quilt</button>
+          <button class="button fit-button" type="button">${iconSvg("maximize")}Fit view</button>
+          <button class="button zoom-in-button" type="button" aria-label="Zoom in">${iconSvg("zoom-in")}<span>Zoom in</span></button>
+          <button class="button zoom-out-button" type="button" aria-label="Zoom out">${iconSvg("zoom-out")}<span>Zoom out</span></button>
+          <button class="button expand-button" type="button">${iconSvg("text")}Expand names</button>
+          <small class="field-note names-toggle-note">
+            Compact names shortens labels when the quilt is crowded. Expand names shows the fuller names again.
+          </small>
         </div>
         <section class="matches-panel">
           <div class="search-results-title">Matches</div>
@@ -125,44 +122,44 @@ export async function createApp() {
       <section class="stage-panel panel">
         <div class="panel-header">
           <div>
-            <div class="kicker">Canvas</div>
+            <div class="kicker">Quilt</div>
             <h2>Interactive quilt</h2>
           </div>
           <div class="stage-meta">
-            <span class="pill layers-pill">0 layers</span>
-            <span class="pill counts-pill">0 vertices</span>
+            <span class="pill layers-pill">0 generations</span>
+            <span class="pill counts-pill">0 items</span>
           </div>
         </div>
         <div class="toolbar">
           <label class="field search-field">
             <span>Search</span>
             <input class="search-input" type="search" placeholder="Search names, dates, or attributes" />
-            <small class="field-note">Dates are searchable by year or GEDCOM date text in All fields or Attributes.</small>
+            <small class="field-note">Search by name, year, family ID, or file detail.</small>
           </label>
           <label class="field">
-            <span>Search scope</span>
+            <span>Search in</span>
             <select class="search-scope-select">
               <option value="all">All fields</option>
               <option value="names">Names</option>
-              <option value="attributes">Attributes</option>
-              <option value="ids">IDs</option>
+              <option value="attributes">File details</option>
+              <option value="ids">Family IDs</option>
             </select>
           </label>
           <label class="field">
-            <span>Highlight mode</span>
+            <span>Show relationships</span>
             <select class="mode-select">
               <option value="all">All</option>
-              <option value="predecessors">Predecessors</option>
-              <option value="successors">Successors</option>
+              <option value="predecessors">Parents and earlier</option>
+              <option value="successors">Children and later</option>
               <option value="none">None</option>
             </select>
           </label>
           <label class="toggle">
             <input class="isolate-toggle" type="checkbox" />
-            <span>Isolate around selection</span>
+            <span>Focus on selection</span>
           </label>
           <label class="field slider-field">
-            <span>Isolation depth</span>
+            <span>Focus depth</span>
             <input class="depth-input" type="range" min="0" max="8" step="1" value="3" />
             <strong class="depth-value">3</strong>
           </label>
@@ -172,41 +169,44 @@ export async function createApp() {
             <strong class="zoom-speed-value">Very fast</strong>
           </label>
           <label class="field slider-field">
-            <span>Graph angle</span>
+            <span>Tilt</span>
             <input class="rotation-input" type="range" min="-90" max="90" step="1" value="0" />
             <strong class="rotation-value">0°</strong>
           </label>
           <div class="toolbar-actions">
             <button class="button rotate-preset-button" type="button">Rotate -15°</button>
             <button class="button rotation-reset-button" type="button">Reset angle</button>
-            <button class="button export-html-button" type="button">Export interactive file</button>
-            <button class="button print-export-button" type="button">Print / PDF</button>
+            <button class="button export-html-button" type="button">${iconSvg("download")}Export file</button>
+            <button class="button print-export-button" type="button">${iconSvg("printer")}Print / PDF</button>
           </div>
         </div>
         <section class="timeline-panel">
           <div class="timeline-header">
             <div class="timeline-title">Timeline</div>
             <div class="timeline-header-actions">
-              <div class="timeline-summary">No dated vertices</div>
+            <div class="timeline-summary">No dates yet</div>
               <button class="button timeline-clear-button" type="button" hidden>Clear range</button>
             </div>
           </div>
           <div class="timeline-controls">
             <label class="field">
-              <span>Timeline scope</span>
+              <span>Show dates for</span>
               <select class="timeline-scope-select">
-                <option value="all">All dated</option>
+                <option value="all">Everything</option>
                 <option value="people">People only</option>
                 <option value="families">Families only</option>
               </select>
             </label>
-            <label class="field">
-              <span>On release</span>
-              <select class="timeline-action-select">
+            <div class="field timeline-action-field">
+              <label for="timeline-action-select">After dragging</label>
+              <select id="timeline-action-select" class="timeline-action-select" aria-describedby="timeline-action-help">
                 <option value="fit">Spotlight</option>
                 <option value="dim">Highlight</option>
               </select>
-            </label>
+              <small id="timeline-action-help" class="field-note timeline-mode-note">
+                Spotlight moves the quilt to the dates you drag over. Highlight keeps your view and softly fades everything outside that date range.
+              </small>
+            </div>
           </div>
           <canvas class="timeline-canvas"></canvas>
         </section>
@@ -225,8 +225,8 @@ export async function createApp() {
             <h2>Vertex details</h2>
           </div>
           <div class="detail-actions">
-            <button class="button pin-highlight-button" type="button">Pin highlight</button>
-            <button class="button clear-highlights-button" type="button">Clear focus</button>
+            <button class="button pin-highlight-button" type="button">${iconSvg("pin")}Pin highlight</button>
+            <button class="button clear-highlights-button" type="button">${iconSvg("x")}Clear focus</button>
           </div>
         </div>
         <div class="highlight-stack"></div>
@@ -241,6 +241,10 @@ export async function createApp() {
   const fileInput = page.querySelector('input[type="file"]');
   const sourceToggle = page.querySelector(".source-toggle");
   const sourceBody = page.querySelector(".source-body");
+  const sourcePanel = page.querySelector(".source-panel");
+  const stagePanel = page.querySelector(".stage-panel");
+  const detailPanel = page.querySelector(".detail-panel");
+  const matchesPanel = page.querySelector(".matches-panel");
   const loadDefaultButton = page.querySelector(".load-default-button");
   const analyzeButton = page.querySelector(".analyze-button");
   const rankerSelect = page.querySelector(".ranker-select");
@@ -289,6 +293,8 @@ export async function createApp() {
   let currentSearchResults = [];
   let namesExpanded = true;
   let pinnedHighlightIds = [];
+  let visibleVertexIds = [];
+  let isBuildingScene = false;
   let sourceLabel = "demo-tree";
   let activeRanker = rankerSelect.value;
 
@@ -300,18 +306,28 @@ export async function createApp() {
         syncSelection();
       }
     },
+    onViewportChange: (ids) => {
+      visibleVertexIds = ids;
+      if (engine && !timelineFocus && !isBuildingScene) {
+        syncTimeline();
+      }
+    },
   });
   renderer.setTheme(theme);
   renderer.setZoomSpeed(sliderValueToZoomSpeed(Number(zoomSpeedInput.value)));
   zoomSpeedValue.textContent = sliderValueToZoomLabel(Number(zoomSpeedInput.value));
-  expandButton.textContent = "Compact names";
+  expandButton.innerHTML = `${iconSvg("text")}Compact names`;
 
   function applyTheme(nextTheme) {
     theme = nextTheme === "dark" ? "dark" : "light";
     document.documentElement.dataset.theme = theme;
     document.documentElement.style.colorScheme = theme;
     localStorage.setItem(THEME_STORAGE_KEY, theme);
-    themeToggleButton.textContent = theme === "dark" ? "Light mode" : "Dark mode";
+    themeToggleButton.innerHTML = iconSvg(theme === "dark" ? "sun" : "moon");
+    themeToggleButton.setAttribute(
+      "aria-label",
+      theme === "dark" ? "Switch to light mode" : "Switch to dark mode",
+    );
     themeToggleButton.setAttribute("aria-pressed", String(theme === "dark"));
     renderer.setTheme(theme);
     renderTimeline(timeline);
@@ -324,6 +340,18 @@ export async function createApp() {
   }
 
   setSourceExpanded(false);
+
+  function syncSurfaceState() {
+    const surface = appSurfaceState({
+      hasScene: Boolean(scene),
+      hasSelection: Boolean(selectedId || timelineFocus),
+    });
+    page.dataset.state = surface.state;
+    sourcePanel.hidden = !surface.showSource;
+    stagePanel.hidden = !surface.showStage;
+    detailPanel.hidden = !surface.showDetails;
+    matchesPanel.hidden = !surface.showSearch;
+  }
 
   function renderSearchResults(results) {
     currentSearchResults = results;
@@ -365,6 +393,13 @@ export async function createApp() {
       return;
     }
 
+    if (!searchInput.value.trim()) {
+      currentSearchResults = [];
+      renderer.setSearchMatches([]);
+      searchResults.innerHTML = `<div class="empty-state">Search names, dates, or attributes to list matches.</div>`;
+      return;
+    }
+
     const results = JSON.parse(engine.search_json(searchInput.value, searchScopeSelect.value));
     renderSearchResults(results);
   }
@@ -383,7 +418,7 @@ export async function createApp() {
           <div><span>Layer</span><strong>${details.layer}</strong></div>
           <div><span>Order</span><strong>${details.order}</strong></div>
           <div><span>Component</span><strong>${details.component}</strong></div>
-          <div><span>DOI reach</span><strong>${interaction.max_distance}</strong></div>
+          <div><span>Focus reach</span><strong>${interaction.max_distance}</strong></div>
         </div>
       </div>
     `;
@@ -391,7 +426,7 @@ export async function createApp() {
     detailRelations.innerHTML = `
       <div class="relation-block">
         <h3>Trace</h3>
-        <p>${interaction.highlighted_vertices.length} highlighted vertices, ${interaction.highlighted_edges.length} highlighted edges.</p>
+        <p>${interaction.highlighted_vertices.length} highlighted items, ${interaction.highlighted_edges.length} relationship links.</p>
       </div>
       <div class="relation-block">
         <h3>Bring and slide</h3>
@@ -429,10 +464,10 @@ export async function createApp() {
                 .join(" · ") || "None"
             : [
                 details.predecessors.length
-                  ? `predecessors: ${details.predecessors.map(escapeHtml).join(", ")}`
+                  ? `earlier links: ${details.predecessors.map(escapeHtml).join(", ")}`
                   : null,
                 details.successors.length
-                  ? `successors: ${details.successors.map(escapeHtml).join(", ")}`
+                  ? `later links: ${details.successors.map(escapeHtml).join(", ")}`
                   : null,
               ]
                 .filter(Boolean)
@@ -485,7 +520,7 @@ export async function createApp() {
           <span class="kind-pill">date range</span>
         </div>
         <div class="detail-grid">
-          <div><span>Dated vertices</span><strong>${focus.matching_vertices_with_dates}</strong></div>
+          <div><span>Dated items</span><strong>${focus.matching_vertices_with_dates}</strong></div>
           <div><span>People</span><strong>${focus.matching_people}</strong></div>
           <div><span>Families</span><strong>${focus.matching_families}</strong></div>
           <div><span>Scope</span><strong>${scopeLabel}</strong></div>
@@ -496,7 +531,7 @@ export async function createApp() {
     detailRelations.innerHTML = `
       <div class="relation-block">
         <h3>Range filter</h3>
-        <p>${focus.matching_vertices_with_dates ? "Timeline focus is active across the quilt." : "No dated vertices fall inside this year range."}</p>
+        <p>${focus.matching_vertices_with_dates ? "Timeline focus is active across the quilt." : "No dated items fall inside this year range."}</p>
       </div>
       <div class="relation-block">
         <h3>Interaction</h3>
@@ -512,7 +547,7 @@ export async function createApp() {
     timeline = summary;
     const palette = timelinePalette(theme);
     if (!summary || !summary.bins?.length) {
-      timelineSummary.textContent = "No dated vertices";
+      timelineSummary.textContent = "No dates yet";
       timelineClearButton.hidden = true;
       const rect = timelineCanvas.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
@@ -527,8 +562,10 @@ export async function createApp() {
       return;
     }
 
+    const activeLabel =
+      selectedId || pinnedHighlightIds.length ? "active" : "visible";
     const activeText = summary.active_range
-      ? `active ${summary.active_range[0]}-${summary.active_range[1]}`
+      ? `${activeLabel} ${summary.active_range[0]}-${summary.active_range[1]}`
       : "no active date focus";
     const scopeText =
       summary.scope === "people"
@@ -628,6 +665,30 @@ export async function createApp() {
     ctx.fillText(endLabel, width - endWidth, height - 2);
   }
 
+  function activeTimelineIds() {
+    const highlights = [...new Set([selectedId, ...pinnedHighlightIds].filter(Boolean))];
+    if (timelineFocus) {
+      return highlights;
+    }
+    return [...new Set([...visibleVertexIds, ...highlights])];
+  }
+
+  function syncTimeline() {
+    if (!engine) {
+      renderTimeline(null);
+      return;
+    }
+    renderTimeline(
+      JSON.parse(
+        engine.timeline_json(
+          JSON.stringify(activeTimelineIds()),
+          selectedId ?? undefined,
+          timelineScopeSelect.value,
+        ),
+      ),
+    );
+  }
+
   function renderHighlightStack() {
     const ids = [...new Set([selectedId, ...pinnedHighlightIds].filter(Boolean))];
     highlightStack.innerHTML = "";
@@ -665,6 +726,7 @@ export async function createApp() {
   }
 
   function syncSelection() {
+    syncSurfaceState();
     if (!engine) {
       return;
     }
@@ -675,7 +737,7 @@ export async function createApp() {
       renderer.setBringAndSlide({ left: null, right: null });
       renderer.setTimelineFocus(timelineFocus);
       renderer.setIsolation(isolateToggle.checked, Number(depthInput.value));
-      renderTimeline(JSON.parse(engine.timeline_json(JSON.stringify([]), null, timelineScopeSelect.value)));
+      syncTimeline();
       if (timelineFocus) {
         renderTimelineFocusDetails(timelineFocus);
       } else {
@@ -692,9 +754,6 @@ export async function createApp() {
       const highlightSummary = JSON.parse(
         engine.highlight_summary_json(JSON.stringify(highlightIds), modeSelect.value),
       );
-      const timelineSummaryValue = JSON.parse(
-        engine.timeline_json(JSON.stringify(highlightIds), selectedId, timelineScopeSelect.value),
-      );
       const details = JSON.parse(engine.vertex_details_json(selectedId));
       const bringAndSlide =
         details.kind === "person"
@@ -708,10 +767,11 @@ export async function createApp() {
       renderer.setBringAndSlide(bringAndSlide);
       renderer.setTimelineFocus(timelineFocus);
       renderer.setIsolation(isolateToggle.checked, Number(depthInput.value));
-      renderTimeline(timelineSummaryValue);
+      syncTimeline();
       renderDetails(details, interaction);
       renderHighlightStack();
       refreshSearch();
+      syncSurfaceState();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       detailSummary.innerHTML = `<div class="error-card">${escapeHtml(message)}</div>`;
@@ -723,36 +783,53 @@ export async function createApp() {
     }
   }
 
-  function analyze() {
+  function scheduleFitView() {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => renderer.fit());
+    });
+  }
+
+  function analyze({ fitAfterReveal = false } = {}) {
     try {
       activeRanker = rankerSelect.value;
       engine = wasm.GeneaQuiltEngine.with_ranker(textarea.value, activeRanker);
       scene = JSON.parse(engine.scene_json());
-      renderer.setScene(scene);
-      layersPill.textContent = `${scene.summary.layers} layers`;
+      layersPill.textContent = `${scene.summary.layers} generations`;
       countsPill.textContent =
-        `${scene.vertices.length} vertices · ${scene.edges.length} edges · ${activeRanker}`;
+        `${scene.vertices.length} items · ${scene.edges.length} links`;
+      isBuildingScene = true;
+      try {
+        renderer.setScene(scene);
+      } finally {
+        isBuildingScene = false;
+      }
 
       selectedId = null;
       pinnedHighlightIds = [];
       timelineFocus = null;
+      visibleVertexIds = [];
       renderer.setTimelineFocus(null);
       refreshSearch();
       syncSelection();
+      syncSurfaceState();
+      if (fitAfterReveal) {
+        scheduleFitView();
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       detailSummary.innerHTML = `<div class="error-card">${escapeHtml(message)}</div>`;
       detailRelations.innerHTML = "";
       detailProperties.innerHTML = "";
-      searchResults.innerHTML = "";
+      searchResults.innerHTML = `<div class="error-card">${escapeHtml(message)}</div>`;
       renderTimeline(null);
+      syncSurfaceState();
     }
   }
 
   function loadDefaultGedcom() {
     sourceLabel = "demo-tree";
     textarea.value = sampleGedcom;
-    analyze();
+    analyze({ fitAfterReveal: shouldFitAfterSourceLoad("sample") });
   }
 
   function timelineYearAtOffset(offsetX) {
@@ -867,7 +944,7 @@ export async function createApp() {
   expandButton.addEventListener("click", () => {
     namesExpanded = !namesExpanded;
     renderer.setExpandedNames(namesExpanded);
-    expandButton.textContent = namesExpanded ? "Compact names" : "Expand names";
+    expandButton.innerHTML = `${iconSvg("text")}${namesExpanded ? "Compact names" : "Expand names"}`;
   });
   searchInput.addEventListener("input", refreshSearch);
   searchScopeSelect.addEventListener("change", refreshSearch);
@@ -983,7 +1060,27 @@ export async function createApp() {
   renderTimeline(null);
   applyTheme(theme);
   applyRotation(0);
+  syncSurfaceState();
   return page;
+}
+
+function iconSvg(name) {
+  const paths = {
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
+    moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+    upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/>',
+    "folder-open": '<path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6A2 2 0 0 1 18.46 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2A2 2 0 0 0 12.09 6H18a2 2 0 0 1 2 2v2"/>',
+    sparkles: '<path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/>',
+    maximize: '<path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>',
+    "zoom-in": '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6"/><path d="M8 11h6"/>',
+    "zoom-out": '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M8 11h6"/>',
+    text: '<path d="M15 18H3"/><path d="M17 6H3"/><path d="M21 12H3"/>',
+    download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/>',
+    printer: '<path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3h12v6"/><rect x="6" y="14" width="12" height="8" rx="1"/>',
+    pin: '<path d="M12 17v5"/><path d="M9 10.76 5.24 7 7 5.24 10.76 9"/><path d="M14 3l7 7-5 5-7-7z"/>',
+    x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  };
+  return `<svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths[name] ?? ""}</svg>`;
 }
 
 function escapeHtml(value) {

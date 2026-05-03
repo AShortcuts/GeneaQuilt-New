@@ -71,6 +71,7 @@ struct InteractionSummary {
     highlighted_edges: Vec<usize>,
     connector_highlights: Vec<ConnectorHighlight>,
     doi: Vec<(String, usize)>,
+    vertex_states: Vec<InteractionVertexState>,
     max_distance: usize,
 }
 
@@ -79,6 +80,17 @@ struct ConnectorHighlight {
     edge_index: usize,
     show_from_connector: bool,
     show_to_connector: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct InteractionVertexState {
+    id: String,
+    kind: String,
+    doi: Option<usize>,
+    selected: bool,
+    highlighted: bool,
+    filtered: bool,
+    alpha: f64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -217,7 +229,11 @@ fn engine_status() -> EngineStatus {
         website_target: true,
         parser_ready: true,
         layout_ready: true,
-        graph_counts: (graph.person_count(), graph.family_count(), graph.edge_count()),
+        graph_counts: (
+            graph.person_count(),
+            graph.family_count(),
+            graph.edge_count(),
+        ),
     }
 }
 
@@ -264,14 +280,12 @@ impl GeneaQuiltEngine {
                     Some(VertexRecord::Person(person)) => {
                         person_snapshot_parts(person, date_range_of_person(person))
                     }
-                    Some(VertexRecord::Family(family)) => {
-                        family_snapshot_parts(
-                            &self.graph,
-                            vertex_id,
-                            family,
-                            date_range_of_family(family),
-                        )
-                    }
+                    Some(VertexRecord::Family(family)) => family_snapshot_parts(
+                        &self.graph,
+                        vertex_id,
+                        family,
+                        date_range_of_family(family),
+                    ),
                     None => unreachable!("vertex ids come from graph"),
                 };
 
@@ -326,20 +340,8 @@ impl GeneaQuiltEngine {
         let mode = parse_mode(mode)?;
         let connector_highlights =
             collect_connector_highlights(&self.graph, &self.layout, selected, mode);
-        let trace_result = trace(
-            &self.graph,
-            SelectionState {
-                selected,
-                mode,
-            },
-        );
-        let doi = compute_selection_doi(
-            &self.graph,
-            SelectionState {
-                selected,
-                mode,
-            },
-        );
+        let trace_result = trace(&self.graph, SelectionState { selected, mode });
+        let doi = compute_selection_doi(&self.graph, SelectionState { selected, mode });
 
         let doi_distances = doi
             .iter()
@@ -356,7 +358,36 @@ impl GeneaQuiltEngine {
                 ))
             })
             .collect::<Vec<_>>();
-        let max_distance = doi_distances.iter().map(|(_, distance)| *distance).max().unwrap_or(0);
+        let max_distance = doi_distances
+            .iter()
+            .map(|(_, distance)| *distance)
+            .max()
+            .unwrap_or(0);
+        let highlighted_set = trace_result
+            .vertices
+            .iter()
+            .map(|vertex_id| vertex_id.0)
+            .collect::<HashSet<_>>();
+        let vertex_states = self
+            .graph
+            .vertex_ids()
+            .filter_map(|vertex_id| {
+                let id = self.graph.vertex_external_id(vertex_id)?.to_string();
+                let kind = kind_name_from_graph(&self.graph, vertex_id)?.to_string();
+                let distance = doi[vertex_id.0].map(|value| value.0);
+                let selected_state = vertex_id == selected;
+                let highlighted = highlighted_set.contains(&vertex_id.0);
+                Some(InteractionVertexState {
+                    id,
+                    kind,
+                    doi: distance,
+                    selected: selected_state,
+                    highlighted,
+                    filtered: false,
+                    alpha: interaction_vertex_alpha(selected_state, highlighted, distance),
+                })
+            })
+            .collect::<Vec<_>>();
 
         let summary = InteractionSummary {
             selected_id: external_id.to_string(),
@@ -364,11 +395,16 @@ impl GeneaQuiltEngine {
             highlighted_vertices: trace_result
                 .vertices
                 .iter()
-                .filter_map(|vertex_id| self.graph.vertex_external_id(*vertex_id).map(str::to_string))
+                .filter_map(|vertex_id| {
+                    self.graph
+                        .vertex_external_id(*vertex_id)
+                        .map(str::to_string)
+                })
                 .collect::<Vec<_>>(),
             highlighted_edges: trace_result.edges,
             connector_highlights,
             doi: doi_distances,
+            vertex_states,
             max_distance,
         };
 
@@ -442,18 +478,18 @@ impl GeneaQuiltEngine {
             None => unreachable!("selected vertex must exist"),
         };
 
-        let (parents, spouses, children, parent_families, spouse_families) = if self.graph.is_person(selected)
-        {
-            (
-                ids_to_labels(&self.graph, self.graph.person_parent_ids(selected)),
-                ids_to_labels(&self.graph, self.graph.person_spouse_ids(selected)),
-                ids_to_labels(&self.graph, self.graph.person_child_ids(selected)),
-                ids_to_labels(&self.graph, self.graph.person_parent_family_ids(selected)),
-                ids_to_labels(&self.graph, self.graph.person_spouse_family_ids(selected)),
-            )
-        } else {
-            (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new())
-        };
+        let (parents, spouses, children, parent_families, spouse_families) =
+            if self.graph.is_person(selected) {
+                (
+                    ids_to_labels(&self.graph, self.graph.person_parent_ids(selected)),
+                    ids_to_labels(&self.graph, self.graph.person_spouse_ids(selected)),
+                    ids_to_labels(&self.graph, self.graph.person_child_ids(selected)),
+                    ids_to_labels(&self.graph, self.graph.person_parent_family_ids(selected)),
+                    ids_to_labels(&self.graph, self.graph.person_spouse_family_ids(selected)),
+                )
+            } else {
+                (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new())
+            };
 
         let details = VertexDetails {
             id: external_id.to_string(),
@@ -500,7 +536,7 @@ impl GeneaQuiltEngine {
                 candidates: Vec::new(),
             };
             return Ok(
-                serde_json::to_string(&summary).expect("bring-and-slide summary should serialize"),
+                serde_json::to_string(&summary).expect("bring-and-slide summary should serialize")
             );
         }
 
@@ -551,9 +587,10 @@ impl GeneaQuiltEngine {
                 .cmp(&relation_rank(&right.relation))
                 .then(
                     left.order
-                .cmp(&right.order)
-                .then(left.layer.cmp(&right.layer))
-                .then(left.label.cmp(&right.label)))
+                        .cmp(&right.order)
+                        .then(left.layer.cmp(&right.layer))
+                        .then(left.label.cmp(&right.label)),
+                )
         });
 
         let summary = BringAndSlideSummary {
@@ -618,7 +655,10 @@ impl GeneaQuiltEngine {
         }
     }
 
-    fn selected_vertex(&self, external_id: &str) -> Result<geneaquilt_core::model::VertexId, JsValue> {
+    fn selected_vertex(
+        &self,
+        external_id: &str,
+    ) -> Result<geneaquilt_core::model::VertexId, JsValue> {
         self.graph
             .vertex_id_by_external_id(external_id)
             .ok_or_else(|| JsValue::from_str("vertex id not found"))
@@ -735,7 +775,10 @@ fn ids_to_labels(
         .collect::<Vec<_>>()
 }
 
-fn vertex_date_range(graph: &GeneaGraph, vertex_id: geneaquilt_core::model::VertexId) -> Option<DateRange> {
+fn vertex_date_range(
+    graph: &GeneaGraph,
+    vertex_id: geneaquilt_core::model::VertexId,
+) -> Option<DateRange> {
     match graph.vertex(vertex_id)? {
         VertexRecord::Person(person) => person.date_range,
         VertexRecord::Family(family) => family.date_range,
@@ -796,7 +839,10 @@ fn order_lookup(layout: &LayoutState) -> Vec<usize> {
     orders
 }
 
-fn kind_name_from_graph(graph: &GeneaGraph, vertex_id: geneaquilt_core::model::VertexId) -> Option<&'static str> {
+fn kind_name_from_graph(
+    graph: &GeneaGraph,
+    vertex_id: geneaquilt_core::model::VertexId,
+) -> Option<&'static str> {
     match graph.vertex(vertex_id)? {
         VertexRecord::Person(_) => Some("person"),
         VertexRecord::Family(_) => Some("family"),
@@ -827,7 +873,10 @@ fn build_highlight_summary(
             .filter_map(|vertex_id| graph.vertex_external_id(*vertex_id).map(str::to_string))
             .collect::<Vec<_>>();
         for vertex_id in &highlighted_vertices {
-            push_unique_color_index(merged_vertices.entry(vertex_id.clone()).or_default(), color_index);
+            push_unique_color_index(
+                merged_vertices.entry(vertex_id.clone()).or_default(),
+                color_index,
+            );
         }
 
         for edge_index in &trace_result.edges {
@@ -835,14 +884,15 @@ fn build_highlight_summary(
         }
 
         for connector in &connector_highlights {
-            let entry = merged_connectors
-                .entry(connector.edge_index)
-                .or_insert(MergedHighlightConnector {
-                    edge_index: connector.edge_index,
-                    color_indices: Vec::new(),
-                    show_from_connector: false,
-                    show_to_connector: false,
-                });
+            let entry =
+                merged_connectors
+                    .entry(connector.edge_index)
+                    .or_insert(MergedHighlightConnector {
+                        edge_index: connector.edge_index,
+                        color_indices: Vec::new(),
+                        show_from_connector: false,
+                        show_to_connector: false,
+                    });
             push_unique_color_index(&mut entry.color_indices, color_index);
             entry.show_from_connector |= connector.show_from_connector;
             entry.show_to_connector |= connector.show_to_connector;
@@ -970,7 +1020,8 @@ fn build_timeline_summary(
         end_year: bounds.end_year,
         total_vertices_with_dates: dated_vertices.len(),
         active_vertices_with_dates,
-        active_range: union_ranges(active_ranges.iter()).map(|range| (range.start_year, range.end_year)),
+        active_range: union_ranges(active_ranges.iter())
+            .map(|range| (range.start_year, range.end_year)),
         selected_range,
         bins,
     })
@@ -1039,6 +1090,19 @@ fn timeline_scope_name(scope: TimelineScope) -> &'static str {
         TimelineScope::All => "all",
         TimelineScope::People => "people",
         TimelineScope::Families => "families",
+    }
+}
+
+fn interaction_vertex_alpha(selected: bool, highlighted: bool, distance: Option<usize>) -> f64 {
+    if selected || highlighted {
+        return 1.0;
+    }
+
+    match distance {
+        Some(1) => 0.72,
+        Some(2) => 0.48,
+        Some(_) => 0.28,
+        None => 0.12,
     }
 }
 
@@ -1111,8 +1175,13 @@ fn collect_predecessor_connector_highlights(
     }
 
     let incoming = graph.incoming_edge_indices(vertex);
-    let unique_edge =
-        choose_unique_connector_edge(graph, orders, vertex, incoming, TraversalDirection::Predecessors);
+    let unique_edge = choose_unique_connector_edge(
+        graph,
+        orders,
+        vertex,
+        incoming,
+        TraversalDirection::Predecessors,
+    );
 
     for edge_index in incoming {
         let show_to_connector = unique_edge.is_none_or(|unique| unique == *edge_index);
@@ -1136,8 +1205,13 @@ fn collect_successor_connector_highlights(
     }
 
     let outgoing = graph.outgoing_edge_indices(vertex);
-    let unique_edge =
-        choose_unique_connector_edge(graph, orders, vertex, outgoing, TraversalDirection::Successors);
+    let unique_edge = choose_unique_connector_edge(
+        graph,
+        orders,
+        vertex,
+        outgoing,
+        TraversalDirection::Successors,
+    );
 
     for edge_index in outgoing {
         let show_from_connector = unique_edge.is_none_or(|unique| unique == *edge_index);
@@ -1227,7 +1301,8 @@ fn push_unique_color_index(indices: &mut Vec<usize>, color_index: usize) {
 }
 
 fn parse_external_ids_json(external_ids_json: &str) -> Result<Vec<String>, JsValue> {
-    serde_json::from_str(external_ids_json).map_err(|_| JsValue::from_str("invalid highlight id payload"))
+    serde_json::from_str(external_ids_json)
+        .map_err(|_| JsValue::from_str("invalid highlight id payload"))
 }
 
 fn parse_mode(mode: &str) -> Result<HighlightMode, JsValue> {
@@ -1252,10 +1327,8 @@ fn mode_name(mode: HighlightMode) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::{
-        TraversalDirection, build_highlight_summary, build_timeline_focus_summary,
-        build_timeline_summary, TimelineScope,
-        choose_unique_connector_edge,
-        collect_connector_highlights,
+        TimelineScope, TraversalDirection, build_highlight_summary, build_timeline_focus_summary,
+        build_timeline_summary, choose_unique_connector_edge, collect_connector_highlights,
     };
     use geneaquilt_core::{HighlightMode, parse_gedcom};
     use geneaquilt_layout::{assign_layers, order_layers};
@@ -1280,8 +1353,8 @@ mod tests {
 
         let original = super::GeneaQuiltEngine::with_ranker(gedcom, "original")
             .expect("original ranker should build");
-        let v2 = super::GeneaQuiltEngine::with_ranker(gedcom, "v2")
-            .expect("v2 ranker should build");
+        let v2 =
+            super::GeneaQuiltEngine::with_ranker(gedcom, "v2").expect("v2 ranker should build");
 
         assert_eq!(original.layout.layers.len(), v2.layout.layers.len());
         assert!(super::parse_ranker("bogus").is_err());
@@ -1542,7 +1615,7 @@ mod tests {
             Some("@I3@"),
             TimelineScope::All,
         )
-            .expect("timeline summary should build");
+        .expect("timeline summary should build");
 
         assert_eq!(summary.scope, "all");
         assert_eq!(summary.start_year, 1900);
@@ -1648,5 +1721,36 @@ mod tests {
         assert_eq!(summary.scope, "people");
         assert_eq!(summary.matching_people, 2);
         assert_eq!(summary.matching_families, 0);
+    }
+
+    #[test]
+    fn interaction_summary_returns_render_ready_vertex_state() {
+        let gedcom = r#"
+0 @I1@ INDI
+1 NAME Parent /One/
+1 FAMS @F1@
+0 @I2@ INDI
+1 NAME Parent /Two/
+1 FAMS @F1@
+0 @I3@ INDI
+1 NAME Child /One/
+1 FAMC @F1@
+0 @F1@ FAM
+1 HUSB @I1@
+1 WIFE @I2@
+1 CHIL @I3@
+"#;
+
+        let engine =
+            super::GeneaQuiltEngine::with_ranker(gedcom, "original").expect("engine should build");
+        let summary = engine
+            .interaction_json("@I3@", "predecessors")
+            .expect("interaction summary should serialize");
+
+        assert!(summary.contains("\"vertex_states\""));
+        assert!(summary.contains("\"id\":\"@I3@\""));
+        assert!(summary.contains("\"selected\":true"));
+        assert!(summary.contains("\"highlighted\":true"));
+        assert!(summary.contains("\"alpha\":1.0"));
     }
 }

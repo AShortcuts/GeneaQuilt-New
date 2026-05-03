@@ -21,7 +21,7 @@ const LINE_HIT_SLOP_PX = 10;
 const HIGHLIGHT_COLORS = ["#d73b26", "#0b6e74", "#3555fa", "#9a5d16"];
 
 export class QuiltRenderer {
-  constructor(canvas, { minimapCanvas = null, onSelect = null } = {}) {
+  constructor(canvas, { minimapCanvas = null, onSelect = null, onViewportChange = null } = {}) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
     this.minimapCanvas = minimapCanvas;
@@ -29,6 +29,7 @@ export class QuiltRenderer {
     this.measureCanvas = document.createElement("canvas");
     this.measureCtx = this.measureCanvas.getContext("2d");
     this.onSelect = onSelect;
+    this.onViewportChange = onViewportChange;
     this.scene = null;
     this.geometry = null;
     this.vertexById = new Map();
@@ -37,6 +38,7 @@ export class QuiltRenderer {
     this.highlightedVertices = new Set();
     this.highlightedEdges = new Set();
     this.connectorHighlights = new Map();
+    this.renderStateById = new Map();
     this.highlightSummary = null;
     this.highlightVertexColors = new Map();
     this.highlightEdgeColors = new Map();
@@ -65,6 +67,7 @@ export class QuiltRenderer {
     this.pointerDown = null;
     this.lastPointer = null;
     this.minimapTransform = null;
+    this.lastViewportSignature = "";
     this.resizeObserver = new ResizeObserver(() => {
       this.resize();
       this.render();
@@ -253,6 +256,9 @@ export class QuiltRenderer {
     this.highlightedEdges = new Set(interaction?.highlighted_edges ?? []);
     this.connectorHighlights = new Map(
       (interaction?.connector_highlights ?? []).map((connector) => [connector.edge_index, connector]),
+    );
+    this.renderStateById = new Map(
+      (interaction?.vertex_states ?? []).map((state) => [state.id, state]),
     );
     this.doiById = new Map(interaction?.doi ?? []);
     this.render();
@@ -490,6 +496,25 @@ export class QuiltRenderer {
 
     ctx.restore();
     this.renderMinimap();
+    this.notifyViewportChange();
+  }
+
+  notifyViewportChange() {
+    if (!this.onViewportChange || !this.geometry || !this.width || !this.height) {
+      return;
+    }
+
+    const ids = this.geometry.vertices
+      .filter((vertex) => isVertexVisible(vertex, this))
+      .filter((vertex) => screenRectIntersectsViewport(vertex, this))
+      .map((vertex) => vertex.id)
+      .sort();
+    const signature = ids.join("|");
+    if (signature === this.lastViewportSignature) {
+      return;
+    }
+    this.lastViewportSignature = signature;
+    this.onViewportChange(ids);
   }
 
   panMinimapToPointer(event) {
@@ -512,7 +537,7 @@ export class QuiltRenderer {
     const ctx = this.minimapCtx;
     ctx.clearRect(0, 0, this.minimapWidth, this.minimapHeight);
 
-    if (!this.geometry) {
+    if (!this.geometry || this.minimapWidth < 2 || this.minimapHeight < 2) {
       return;
     }
 
@@ -968,6 +993,18 @@ function screenToWorldPoint(screenX, screenY, transform) {
     y: (screenY - transform.offsetY) / transform.scale,
   };
   return rotatePoint(world, transform.center, -transform.rotationRadians);
+}
+
+function screenRectIntersectsViewport(rect, renderer) {
+  const transform = renderer.sceneTransform();
+  const points = rectCorners(rect).map((point) => worldToScreenPoint(point, transform));
+  const bounds = boundsFromPoints(points);
+  return (
+    bounds.minX <= renderer.width &&
+    bounds.minX + bounds.width >= 0 &&
+    bounds.minY <= renderer.height &&
+    bounds.minY + bounds.height >= 0
+  );
 }
 
 function applySceneTransform(ctx, transform) {
@@ -1562,6 +1599,10 @@ function vertexAlpha(vertex, renderer) {
   }
   if (renderer.highlightVertexColors.has(vertex.id)) {
     return 0.98;
+  }
+  const renderState = renderer.renderStateById.get(vertex.id);
+  if (renderState?.alpha != null) {
+    return renderState.alpha;
   }
   if (timelineActive && timelineFocused) {
     return 0.92;
@@ -2343,13 +2384,15 @@ function escapeMarkup(value) {
 }
 
 function roundRect(ctx, x, y, width, height, radius) {
-  const clampedRadius = Math.min(radius, width / 2, height / 2);
+  const safeWidth = Math.max(0, width);
+  const safeHeight = Math.max(0, height);
+  const clampedRadius = Math.max(0, Math.min(radius, safeWidth / 2, safeHeight / 2));
   ctx.beginPath();
   ctx.moveTo(x + clampedRadius, y);
-  ctx.arcTo(x + width, y, x + width, y + height, clampedRadius);
-  ctx.arcTo(x + width, y + height, x, y + height, clampedRadius);
-  ctx.arcTo(x, y + height, x, y, clampedRadius);
-  ctx.arcTo(x, y, x + width, y, clampedRadius);
+  ctx.arcTo(x + safeWidth, y, x + safeWidth, y + safeHeight, clampedRadius);
+  ctx.arcTo(x + safeWidth, y + safeHeight, x, y + safeHeight, clampedRadius);
+  ctx.arcTo(x, y + safeHeight, x, y, clampedRadius);
+  ctx.arcTo(x, y, x + safeWidth, y, clampedRadius);
   ctx.closePath();
 }
 
