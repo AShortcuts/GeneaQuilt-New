@@ -60,7 +60,7 @@ cd web
 npm run build
 ```
 
-The generated Wasm package is written to `web/pkg` and is not tracked in git.
+The generated Wasm package is written to `web/pkg`. This directory is committed so hosts without Rust, Cargo, or `wasm-pack` can still build the static Vite site.
 
 ## Cloudflare Pages
 
@@ -71,7 +71,7 @@ Use these build settings:
 - Build command: `npm run build:cloudflare`
 - Build output directory: `dist`
 
-Cloudflare's build image may not include `wasm-pack` by default. The `build:cloudflare` script installs it with Cargo when missing, then runs the normal production build.
+Cloudflare does not need Rust or `wasm-pack` with this setup. Before committing changes that affect `crates/geneaquilt-wasm` or its dependencies, run `cd web && npm run build:wasm` locally and commit the updated `web/pkg` files. Cloudflare then only runs `vite build` against the prebuilt Wasm package.
 
 ## Current status
 

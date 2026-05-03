@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build:wasm": "PATH=\"$HOME/Library/Caches/.wasm-pack/wasm-bindgen-cargo-install-0.2.118:$PATH\" wasm-pack build ../crates/geneaquilt-wasm --target web --out-dir ../../web/pkg --release --mode no-install",
-    "build:cloudflare": "(command -v wasm-pack >/dev/null 2>&1 || cargo install wasm-pack --locked) && npm run build",
+    "build:cloudflare": "vite build",
     "dev": "npm run build:wasm && vite",
     "build": "npm run build:wasm && vite build",
     "preview": "vite preview"

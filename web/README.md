@@ -20,5 +20,5 @@ Build notes:
 
 - `npm run build:wasm` generates the browser package into `web/pkg`
 - `npm run dev` rebuilds the Wasm package first, then starts Vite
-- `npm run build:cloudflare` installs `wasm-pack` with Cargo when missing, then runs the production build
-- the generated `pkg` directory is not tracked in git
+- `npm run build:cloudflare` runs `vite build` against the committed `web/pkg` package for hosts that do not provide Rust or `wasm-pack`
+- the generated `pkg` directory is tracked for deployment; run `npm run build:wasm` locally and commit `web/pkg` whenever the Wasm crate changes
