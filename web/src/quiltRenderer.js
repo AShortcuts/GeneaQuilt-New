@@ -20,7 +20,7 @@ const MINIMAP_PADDING = 10;
 const SLIDE_DISTANCE = 88;
 const SLIDE_COMMIT_THRESHOLD = 0.98;
 const LINE_HIT_SLOP_PX = 10;
-const HIGHLIGHT_COLORS = ["#d55237", "#00897b", "#336b7a", "#c47f10"];
+const HIGHLIGHT_COLORS = ["#b75f45", "#4b6958", "#527886", "#a96f32"];
 
 export class QuiltRenderer {
   constructor(
@@ -1230,54 +1230,54 @@ function computeBoundsFromRects(rects) {
 function rendererPalette(theme) {
   if (theme === "dark") {
     return {
-      paperColor: "#0f1d22",
-      generationPerson: "rgba(148, 163, 156, 0.13)",
-      generationPersonDense: "rgba(148, 163, 156, 0.3)",
-      generationFamily: "rgba(242, 184, 74, 0.16)",
-      generationFamilyDense: "rgba(242, 184, 74, 0.32)",
-      grid: "rgba(226, 232, 228, 0.18)",
-      edgeDefault: "rgba(175, 188, 181, 0.72)",
-      edgeHighlightStroke: "rgba(245, 249, 247, 0.86)",
-      personDense: "rgba(154, 169, 163, 0.72)",
-      personText: "#e9efeb",
-      familyBaseFill: "rgba(29, 41, 38, 0.98)",
-      familyBaseStroke: "rgba(242, 184, 74, 0.9)",
-      familyBaseText: "#f5dfb6",
-      familyPatternStroke: "rgba(242, 184, 74, 0.28)",
-      minimapBackground: "rgba(17, 24, 22, 0.95)",
-      minimapBorder: "rgba(226, 232, 228, 0.14)",
-      minimapPersonBand: "rgba(45, 212, 191, 0.11)",
-      minimapFamilyBand: "rgba(242, 184, 74, 0.14)",
-      minimapFamily: "rgba(173, 179, 174, 0.46)",
-      minimapPerson: "rgba(126, 141, 134, 0.48)",
-      minimapViewportStroke: "rgba(255, 122, 95, 0.96)",
-      minimapViewportFill: "rgba(255, 122, 95, 0.14)",
+      paperColor: "#18201c",
+      generationPerson: "rgba(166, 173, 162, 0.13)",
+      generationPersonDense: "rgba(166, 173, 162, 0.3)",
+      generationFamily: "rgba(209, 162, 101, 0.16)",
+      generationFamilyDense: "rgba(209, 162, 101, 0.32)",
+      grid: "rgba(238, 240, 233, 0.18)",
+      edgeDefault: "rgba(183, 190, 180, 0.72)",
+      edgeHighlightStroke: "rgba(250, 248, 241, 0.86)",
+      personDense: "rgba(166, 176, 168, 0.72)",
+      personText: "#eef0e9",
+      familyBaseFill: "rgba(37, 42, 36, 0.98)",
+      familyBaseStroke: "rgba(209, 162, 101, 0.9)",
+      familyBaseText: "#ead5b8",
+      familyPatternStroke: "rgba(209, 162, 101, 0.28)",
+      minimapBackground: "rgba(24, 28, 24, 0.95)",
+      minimapBorder: "rgba(238, 240, 233, 0.14)",
+      minimapPersonBand: "rgba(142, 175, 153, 0.11)",
+      minimapFamilyBand: "rgba(209, 162, 101, 0.14)",
+      minimapFamily: "rgba(183, 190, 180, 0.46)",
+      minimapPerson: "rgba(150, 160, 152, 0.48)",
+      minimapViewportStroke: "rgba(223, 137, 108, 0.96)",
+      minimapViewportFill: "rgba(223, 137, 108, 0.14)",
     };
   }
 
   return {
-    paperColor: "#eef8fa",
-    generationPerson: "rgba(82, 96, 88, 0.12)",
-    generationPersonDense: "rgba(82, 96, 88, 0.32)",
-    generationFamily: "rgba(196, 127, 16, 0.14)",
-    generationFamilyDense: "rgba(196, 127, 16, 0.34)",
-    grid: "rgba(82, 96, 88, 0.22)",
-    edgeDefault: "rgba(55, 65, 61, 0.72)",
+    paperColor: "#edf1ec",
+    generationPerson: "rgba(75, 105, 88, 0.1)",
+    generationPersonDense: "rgba(75, 105, 88, 0.28)",
+    generationFamily: "rgba(169, 111, 50, 0.13)",
+    generationFamilyDense: "rgba(169, 111, 50, 0.32)",
+    grid: "rgba(75, 105, 88, 0.19)",
+    edgeDefault: "rgba(66, 76, 69, 0.7)",
     edgeHighlightStroke: "rgba(255,255,255,0.88)",
-    personDense: "rgba(82, 96, 88, 0.62)",
-    personText: "#17201d",
-    familyBaseFill: "rgba(255, 252, 245, 0.98)",
-    familyBaseStroke: "rgba(196, 127, 16, 0.92)",
-    familyBaseText: "#312a1f",
-    familyPatternStroke: "rgba(196, 127, 16, 0.26)",
-    minimapBackground: "rgba(250, 251, 248, 0.94)",
-    minimapBorder: "rgba(23, 32, 29, 0.14)",
-    minimapPersonBand: "rgba(0, 137, 123, 0.08)",
-    minimapFamilyBand: "rgba(196, 127, 16, 0.1)",
-    minimapFamily: "rgba(82, 96, 88, 0.36)",
-    minimapPerson: "rgba(82, 96, 88, 0.42)",
-    minimapViewportStroke: "rgba(213, 82, 55, 0.94)",
-    minimapViewportFill: "rgba(213, 82, 55, 0.1)",
+    personDense: "rgba(75, 105, 88, 0.58)",
+    personText: "#2d312b",
+    familyBaseFill: "rgba(255, 250, 242, 0.98)",
+    familyBaseStroke: "rgba(169, 111, 50, 0.9)",
+    familyBaseText: "#3a3024",
+    familyPatternStroke: "rgba(169, 111, 50, 0.24)",
+    minimapBackground: "rgba(255, 253, 248, 0.94)",
+    minimapBorder: "rgba(45, 49, 43, 0.14)",
+    minimapPersonBand: "rgba(75, 105, 88, 0.08)",
+    minimapFamilyBand: "rgba(169, 111, 50, 0.1)",
+    minimapFamily: "rgba(106, 111, 101, 0.36)",
+    minimapPerson: "rgba(75, 105, 88, 0.4)",
+    minimapViewportStroke: "rgba(183, 95, 69, 0.94)",
+    minimapViewportFill: "rgba(183, 95, 69, 0.1)",
   };
 }
 
@@ -2033,12 +2033,12 @@ function buildInteractiveHtmlDocument(renderer, { title, autoPrint }) {
     <style>
       :root {
         color-scheme: light;
-        --paper: #eef2ef;
-        --panel: #ffffff;
-        --line: #d7ded8;
-        --ink: #17201d;
-        --muted: #62706a;
-        --accent: #00897b;
+        --paper: #f3eee5;
+        --panel: #fffdf8;
+        --line: #d9d1c4;
+        --ink: #2d312b;
+        --muted: #6a6f65;
+        --accent: #4b6958;
       }
 
       * { box-sizing: border-box; }
@@ -2095,7 +2095,7 @@ function buildInteractiveHtmlDocument(renderer, { title, autoPrint }) {
         border: 1px solid var(--line);
         border-radius: 6px;
         padding: 8px 12px;
-        background: #f8faf7;
+        background: #fbf8f1;
         color: var(--ink);
         font: inherit;
         cursor: pointer;
@@ -2117,7 +2117,7 @@ function buildInteractiveHtmlDocument(renderer, { title, autoPrint }) {
         border: 1px solid var(--line);
         border-radius: 8px;
         overflow: hidden;
-        background: #fbfef9;
+        background: #edf1ec;
         cursor: grab;
       }
 
@@ -2321,7 +2321,7 @@ function buildExportSvgMarkup(renderer, title) {
       <line x1="0" y1="0" x2="0" y2="6" stroke="rgba(196, 127, 16, 0.24)" stroke-width="1" />
     </pattern>
   </defs>
-  <rect x="${formatExportNumber(viewBox.minX)}" y="${formatExportNumber(viewBox.minY)}" width="${formatExportNumber(viewBox.width)}" height="${formatExportNumber(viewBox.height)}" fill="#eef8fa" />
+  <rect x="${formatExportNumber(viewBox.minX)}" y="${formatExportNumber(viewBox.minY)}" width="${formatExportNumber(viewBox.width)}" height="${formatExportNumber(viewBox.height)}" fill="#edf1ec" />
   <g id="snapshot-viewport">
     <g id="snapshot-rotation" transform="rotate(${formatExportNumber(renderer.rotationDegrees)} ${formatExportNumber(center.x)} ${formatExportNumber(center.y)})">
       ${buildExportGenerationMarkup(geometry)}

@@ -59,163 +59,204 @@ export async function createApp() {
   document.documentElement.style.colorScheme = theme;
 
   page.innerHTML = `
-    <section class="hero">
-      <div class="hero-topline">
-        <div class="eyebrow">GeneaQuilt</div>
-        <div class="appearance-controls" aria-label="Appearance">
-          <button class="button icon-button theme-toggle-button" type="button" aria-pressed="${theme === "dark" ? "true" : "false"}" aria-label="${theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}">
-            ${iconSvg(theme === "dark" ? "sun" : "moon")}
-          </button>
+    <header class="hero">
+      <div class="brand-lockup">
+        <div class="brand-mark" aria-hidden="true">
+          <span></span><span></span><span></span><span></span>
         </div>
-      </div>
-      <div class="hero-grid">
         <div>
-          <h1>GEDCOM viewer</h1>
-          <p class="lede">
-            Load a family tree, inspect the quilt layout, search people, and export a working snapshot.
-          </p>
+          <div class="eyebrow">Family tree workspace</div>
+          <h1>GeneaQuilt</h1>
+          <p class="lede">Explore the people, generations, and connections woven through your family tree.</p>
         </div>
       </div>
-    </section>
+      <div class="appearance-controls" aria-label="Appearance">
+        <button class="button icon-button theme-toggle-button" type="button" aria-pressed="${theme === "dark" ? "true" : "false"}" aria-label="${theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}">
+          ${iconSvg(theme === "dark" ? "sun" : "moon")}
+        </button>
+      </div>
+    </header>
     <section class="studio">
       <section class="source-panel panel">
         <div class="panel-header">
           <div>
-            <div class="kicker">Source</div>
-            <h2>Input</h2>
+            <div class="kicker">Tree source</div>
+            <h2>Open a family tree</h2>
           </div>
-          <label class="button button-file">
+        </div>
+        <p class="panel-intro">Choose a GEDCOM file to begin. Your tree is processed here in the browser.</p>
+        <div class="source-actions">
+          <label class="button button-primary button-file">
             <input type="file" accept=".ged,.gedcom,.txt" />
             ${iconSvg("upload")}
-            <span>Load file</span>
+            <span>Choose GEDCOM</span>
           </label>
+          <button class="button load-default-button" type="button">
+            ${iconSvg("folder-open")}<span>Explore the sample</span>
+          </button>
         </div>
-        <button class="button load-default-button" type="button">
-          <span>${iconSvg("folder-open")}Load sample tree</span>
-        </button>
+        <div class="source-status" hidden>${iconSvg("check")}<span></span></div>
+        <p class="privacy-note">${iconSvg("lock")}<span>Your family file stays on this device.</span></p>
         <button class="source-toggle" type="button" aria-expanded="false">
-          <span>GEDCOM input</span>
-          <strong>Expand</strong>
+          <span class="source-toggle-label">${iconSvg("code")}Paste or edit GEDCOM</span>
+          <span class="source-toggle-action"><strong>Show</strong>${iconSvg("chevron-down")}</span>
         </button>
         <div class="source-body" hidden>
-          <textarea spellcheck="false"></textarea>
-        </div>
-        <div class="row-actions">
-          <label class="field ranker-field">
-            <span>Layout style</span>
-            <select class="ranker-select">
-              <option value="original">Standard</option>
-              <option value="v2">Experimental</option>
-            </select>
+          <label class="field source-text-field">
+            <span>GEDCOM text</span>
+            <textarea spellcheck="false" aria-label="GEDCOM text" placeholder="Paste GEDCOM text here"></textarea>
           </label>
-          <button class="button button-primary analyze-button">${iconSvg("sparkles")}Build quilt</button>
-          <button class="button fit-button" type="button">${iconSvg("maximize")}Fit view</button>
-          <button class="button zoom-in-button" type="button" aria-label="Zoom in">${iconSvg("zoom-in")}<span>Zoom in</span></button>
-          <button class="button zoom-out-button" type="button" aria-label="Zoom out">${iconSvg("zoom-out")}<span>Zoom out</span></button>
-          <button class="button expand-button" type="button">${iconSvg("text")}Expand names</button>
-          <small class="field-note names-toggle-note">
-            Compact names shortens labels when the quilt is crowded. Expand names shows the fuller names again.
-          </small>
-        </div>
-        <div class="toolbar interactive-controls">
-          <label class="field search-field">
-            <span>Search</span>
-            <input class="search-input" type="search" placeholder="Search names, dates, or attributes" />
-            <small class="field-note">Search by name, year, family ID, or file detail.</small>
-          </label>
-          <section class="matches-panel search-popup" aria-live="polite">
-            <div class="search-results-title">Matches</div>
-            <div class="search-results"></div>
-          </section>
-          <label class="field">
-            <span>Search in</span>
-            <select class="search-scope-select">
-              <option value="all">All fields</option>
-              <option value="names">Names</option>
-              <option value="attributes">File details</option>
-              <option value="ids">Family IDs</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>Show relationships</span>
-            <select class="mode-select">
-              <option value="all">All</option>
-              <option value="predecessors">Parents and earlier</option>
-              <option value="successors">Children and later</option>
-              <option value="none">None</option>
-            </select>
-          </label>
-          <label class="toggle">
-            <input class="isolate-toggle" type="checkbox" />
-            <span>Focus on selection</span>
-          </label>
-          <label class="field slider-field">
-            <span>Focus depth</span>
-            <input class="depth-input" type="range" min="0" max="8" step="1" value="3" />
-            <strong class="depth-value">3</strong>
-          </label>
-          <label class="field slider-field">
-            <span>Zoom speed</span>
-            <input class="zoom-speed-input" type="range" min="0" max="100" step="1" value="100" />
-            <strong class="zoom-speed-value">Very fast</strong>
-          </label>
-          <label class="field slider-field">
-            <span>Tilt</span>
-            <input class="rotation-input" type="range" min="-90" max="90" step="1" value="0" />
-            <strong class="rotation-value">0°</strong>
-          </label>
-          <div class="toolbar-actions">
-            <button class="button rotate-preset-button" type="button">Rotate -15°</button>
-            <button class="button rotation-reset-button" type="button">Reset angle</button>
-            <button class="button export-html-button" type="button">${iconSvg("download")}Export file</button>
-            <button class="button print-export-button" type="button">${iconSvg("printer")}Print / PDF</button>
+          <div class="source-build-options">
+            <label class="field ranker-field">
+              <span>Layout style</span>
+              <select class="ranker-select">
+                <option value="original">Standard</option>
+                <option value="v2">Experimental</option>
+              </select>
+            </label>
+            <button class="button button-primary analyze-button">${iconSvg("sparkles")}Build quilt</button>
           </div>
         </div>
       </section>
       <section class="stage-panel panel">
         <div class="panel-header">
           <div>
-            <div class="kicker">Quilt</div>
-            <h2>Quilt view</h2>
+            <div class="kicker">Family quilt</div>
+            <h2>Explore your tree</h2>
           </div>
           <div class="stage-meta">
             <span class="pill layers-pill">0 generations</span>
             <span class="pill counts-pill">0 items</span>
           </div>
         </div>
-        <section class="timeline-panel">
-          <div class="timeline-header">
-            <div class="timeline-title">Timeline</div>
-            <div class="timeline-header-actions">
+        <div class="toolbar interactive-controls">
+          <div class="search-cluster">
+            <label class="workspace-search">
+              ${iconSvg("search")}
+              <span class="visually-hidden">Search family tree</span>
+              <input class="search-input" type="search" aria-label="Search family tree" placeholder="Search names, dates, or details" />
+            </label>
+            <section class="matches-panel search-popup" aria-live="polite">
+              <div class="search-results-title">Matches</div>
+              <div class="search-results"></div>
+            </section>
+          </div>
+          <div class="quick-actions" aria-label="Quilt view controls">
+            <button class="button fit-button" type="button">${iconSvg("maximize")}<span>Fit</span></button>
+            <div class="zoom-actions" aria-label="Zoom controls">
+              <button class="button icon-button zoom-out-button" type="button" aria-label="Zoom out">${iconSvg("zoom-out")}</button>
+              <button class="button icon-button zoom-in-button" type="button" aria-label="Zoom in">${iconSvg("zoom-in")}</button>
+            </div>
+            <button class="button expand-button" type="button">${iconSvg("text")}Expand names</button>
+            <details class="tool-menu">
+              <summary class="button tool-menu-button">
+                ${iconSvg("sliders")}<span>Quilt tools</span>${iconSvg("chevron-down")}
+              </summary>
+              <div class="tool-menu-panel">
+                <div class="tool-menu-heading">
+                  <div>
+                    <strong>Quilt tools</strong>
+                    <span>Fine-tune what you see without crowding the workspace.</span>
+                  </div>
+                  <button class="button icon-button tool-menu-close" type="button" aria-label="Close quilt tools">${iconSvg("x")}</button>
+                </div>
+                <section class="tool-section">
+                  <h3>Find and focus</h3>
+                  <div class="tool-grid">
+                    <label class="field">
+                      <span>Search in</span>
+                      <select class="search-scope-select">
+                        <option value="all">All fields</option>
+                        <option value="names">Names</option>
+                        <option value="attributes">File details</option>
+                        <option value="ids">Family IDs</option>
+                      </select>
+                    </label>
+                    <label class="field">
+                      <span>Show relationships</span>
+                      <select class="mode-select">
+                        <option value="all">All</option>
+                        <option value="predecessors">Parents and earlier</option>
+                        <option value="successors">Children and later</option>
+                        <option value="none">None</option>
+                      </select>
+                    </label>
+                  </div>
+                  <label class="toggle tool-toggle">
+                    <input class="isolate-toggle" type="checkbox" />
+                    <span>Focus the quilt on the current selection</span>
+                  </label>
+                  <label class="field slider-field">
+                    <span>Focus depth</span>
+                    <input class="depth-input" type="range" min="0" max="8" step="1" value="3" />
+                    <strong class="depth-value">3</strong>
+                  </label>
+                </section>
+                <section class="tool-section">
+                  <h3>View</h3>
+                  <label class="field slider-field">
+                    <span>Zoom speed</span>
+                    <input class="zoom-speed-input" type="range" min="0" max="100" step="1" value="100" />
+                    <strong class="zoom-speed-value">Very fast</strong>
+                  </label>
+                  <label class="field slider-field">
+                    <span>Tilt</span>
+                    <input class="rotation-input" type="range" min="-90" max="90" step="1" value="0" />
+                    <strong class="rotation-value">0°</strong>
+                  </label>
+                  <div class="tool-actions">
+                    <button class="button rotate-preset-button" type="button">Rotate -15°</button>
+                    <button class="button rotation-reset-button" type="button">Reset angle</button>
+                  </div>
+                </section>
+                <section class="tool-section">
+                  <h3>Save and share</h3>
+                  <div class="tool-actions">
+                    <button class="button export-html-button" type="button">${iconSvg("download")}Export file</button>
+                    <button class="button print-export-button" type="button">${iconSvg("printer")}Print / PDF</button>
+                  </div>
+                </section>
+              </div>
+            </details>
+          </div>
+        </div>
+        <details class="timeline-panel">
+          <summary class="timeline-disclosure-summary">
+            <span class="timeline-title">${iconSvg("clock")}Timeline</span>
+            <span class="timeline-summary">No dates yet</span>
+            ${iconSvg("chevron-down")}
+          </summary>
+          <div class="timeline-content">
+            <div class="timeline-header">
               <div class="focus-status">No active focus</div>
-              <div class="timeline-summary">No dates yet</div>
               <button class="button timeline-clear-button" type="button" hidden>Clear range</button>
             </div>
-          </div>
-          <div class="timeline-controls">
-            <label class="field">
-              <span>Show dates for</span>
-              <select class="timeline-scope-select">
-                <option value="all">Everything</option>
-                <option value="people">People only</option>
-                <option value="families">Families only</option>
-              </select>
-            </label>
-            <div class="field timeline-action-field">
-              <label for="timeline-action-select">After dragging</label>
-              <select id="timeline-action-select" class="timeline-action-select" aria-describedby="timeline-action-help">
-                <option value="fit">Spotlight</option>
-                <option value="dim">Highlight</option>
-              </select>
-              <small id="timeline-action-help" class="field-note timeline-mode-note">
-                Spotlight moves the quilt to the dates you drag over. Highlight keeps your view and softly fades everything outside that date range.
-              </small>
+            <div class="timeline-controls">
+              <label class="field">
+                <span>Show dates for</span>
+                <select class="timeline-scope-select">
+                  <option value="all">Everything</option>
+                  <option value="people">People only</option>
+                  <option value="families">Families only</option>
+                </select>
+              </label>
+              <div class="field timeline-action-field">
+                <label for="timeline-action-select">After dragging</label>
+                <select id="timeline-action-select" class="timeline-action-select" aria-describedby="timeline-action-help">
+                  <option value="fit">Spotlight</option>
+                  <option value="dim">Highlight</option>
+                </select>
+                <small id="timeline-action-help" class="field-note timeline-mode-note">
+                  Spotlight moves to the selected dates. Highlight keeps your view and softens everything outside the range.
+                </small>
+              </div>
             </div>
+            <canvas class="timeline-canvas"></canvas>
           </div>
-          <canvas class="timeline-canvas"></canvas>
-        </section>
+        </details>
         <div class="stage-shell">
           <canvas class="quilt-canvas"></canvas>
+          <div class="stage-hint">Drag to move <span>·</span> Scroll to zoom <span>·</span> Select a name for details</div>
           <div class="minimap-shell">
             <div class="minimap-label">Overview</div>
             <canvas class="minimap-canvas"></canvas>
@@ -225,8 +266,8 @@ export async function createApp() {
       <section class="detail-panel panel">
         <div class="panel-header">
           <div>
-            <div class="kicker">Selection</div>
-            <h2>Details</h2>
+            <div class="kicker">Selected item</div>
+            <h2>Family details</h2>
           </div>
           <div class="detail-actions">
             <button class="button pin-highlight-button" type="button">${iconSvg("pin")}Pin highlight</button>
@@ -274,6 +315,8 @@ export async function createApp() {
   const themeToggleButton = page.querySelector(".theme-toggle-button");
   const layersPill = page.querySelector(".layers-pill");
   const countsPill = page.querySelector(".counts-pill");
+  const sourceStatus = page.querySelector(".source-status");
+  const timelinePanel = page.querySelector(".timeline-panel");
   const timelineSummary = page.querySelector(".timeline-summary");
   const focusStatus = page.querySelector(".focus-status");
   const timelineCanvas = page.querySelector(".timeline-canvas");
@@ -289,6 +332,7 @@ export async function createApp() {
   const highlightStack = page.querySelector(".highlight-stack");
   const canvas = page.querySelector(".quilt-canvas");
   const minimapCanvas = page.querySelector(".minimap-canvas");
+  const toolMenus = [...page.querySelectorAll(".tool-menu")];
 
   let engine = null;
   let scene = null;
@@ -296,6 +340,7 @@ export async function createApp() {
   let timelineFocus = null;
   let selectedId = null;
   let currentSearchResults = [];
+  let matchesDismissed = false;
   let namesExpanded = true;
   let pinnedHighlightIds = [];
   let visibleVertexIds = [];
@@ -344,8 +389,9 @@ export async function createApp() {
 
   function setSourceExpanded(expanded) {
     sourceBody.hidden = !expanded;
+    sourcePanel.classList.toggle("is-source-expanded", expanded);
     sourceToggle.setAttribute("aria-expanded", String(expanded));
-    sourceToggle.querySelector("strong").textContent = expanded ? "Collapse" : "Expand";
+    sourceToggle.querySelector("strong").textContent = expanded ? "Hide" : "Show";
   }
 
   setSourceExpanded(false);
@@ -370,7 +416,7 @@ export async function createApp() {
       query: searchInput.value,
       resultCount: currentSearchResults.length,
     });
-    matchesPanel.hidden = !popup.showPopup;
+    matchesPanel.hidden = !popup.showPopup || matchesDismissed;
     matchesPanel.dataset.state = popup.state;
   }
 
@@ -394,6 +440,7 @@ export async function createApp() {
         <span>${escapeHtml(result.kind === "person" ? "person" : "family")} · layer ${result.layer}</span>
       `;
       button.addEventListener("click", () => {
+        matchesDismissed = true;
         selectedId = result.id;
         syncSelection();
       });
@@ -826,6 +873,9 @@ export async function createApp() {
       scene = JSON.parse(engine.scene_json());
       layersPill.textContent = `${scene.summary.layers} generations`;
       countsPill.textContent = `${scene.vertices.length} items · ${scene.edges.length} links`;
+      sourceStatus.hidden = false;
+      sourceStatus.querySelector("span").textContent = `${sourceLabel} is open`;
+      setSourceExpanded(false);
       isBuildingScene = true;
       try {
         renderer.setScene(scene);
@@ -967,6 +1017,46 @@ export async function createApp() {
   sourceToggle.addEventListener("click", () => {
     setSourceExpanded(sourceBody.hidden);
   });
+  timelinePanel.addEventListener("toggle", () => {
+    if (timelinePanel.open) {
+      requestAnimationFrame(() => renderTimeline(timeline));
+    }
+  });
+  for (const menu of toolMenus) {
+    menu.addEventListener("toggle", () => {
+      if (!menu.open) {
+        return;
+      }
+      for (const otherMenu of toolMenus) {
+        if (otherMenu !== menu) {
+          otherMenu.open = false;
+        }
+      }
+    });
+  }
+  page.querySelector(".tool-menu-close").addEventListener("click", (event) => {
+    event.currentTarget.closest(".tool-menu").open = false;
+  });
+  page.addEventListener("pointerdown", (event) => {
+    if (!event.target.closest(".search-cluster")) {
+      matchesDismissed = true;
+      syncMatchesPopup();
+    }
+    for (const menu of toolMenus) {
+      if (menu.open && !menu.contains(event.target)) {
+        menu.open = false;
+      }
+    }
+  });
+  page.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      matchesDismissed = true;
+      syncMatchesPopup();
+      for (const menu of toolMenus) {
+        menu.open = false;
+      }
+    }
+  });
   fitButton.addEventListener("click", () => renderer.fit({ animated: true }));
   zoomInButton.addEventListener("click", () => renderer.zoomBy(1.1));
   zoomOutButton.addEventListener("click", () => renderer.zoomBy(0.9));
@@ -975,8 +1065,18 @@ export async function createApp() {
     renderer.setExpandedNames(namesExpanded);
     expandButton.innerHTML = `${iconSvg("text")}${namesExpanded ? "Compact names" : "Expand names"}`;
   });
-  searchInput.addEventListener("input", refreshSearch);
-  searchScopeSelect.addEventListener("change", refreshSearch);
+  searchInput.addEventListener("input", () => {
+    matchesDismissed = false;
+    refreshSearch();
+  });
+  searchInput.addEventListener("focus", () => {
+    matchesDismissed = false;
+    syncMatchesPopup();
+  });
+  searchScopeSelect.addEventListener("change", () => {
+    matchesDismissed = false;
+    refreshSearch();
+  });
   modeSelect.addEventListener("change", syncSelection);
   pinHighlightButton.addEventListener("click", () => {
     if (!selectedId || pinnedHighlightIds.includes(selectedId)) {
@@ -1111,6 +1211,14 @@ function iconSvg(name) {
       '<path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3h12v6"/><rect x="6" y="14" width="12" height="8" rx="1"/>',
     pin: '<path d="M12 17v5"/><path d="M9 10.76 5.24 7 7 5.24 10.76 9"/><path d="M14 3l7 7-5 5-7-7z"/>',
     x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+    search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>',
+    sliders:
+      '<path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><path d="M1 14h6"/><path d="M9 8h6"/><path d="M17 16h6"/>',
+    "chevron-down": '<path d="m6 9 6 6 6-6"/>',
+    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    lock: '<rect width="16" height="11" x="4" y="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
+    code: '<path d="m8 9-4 3 4 3"/><path d="m16 9 4 3-4 3"/><path d="m14 5-4 14"/>',
+    check: '<path d="m5 12 4 4L19 6"/>',
   };
   return `<svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths[name] ?? ""}</svg>`;
 }
@@ -1177,27 +1285,27 @@ function getInitialTheme() {
 function timelinePalette(theme) {
   if (theme === "dark") {
     return {
-      background: "rgba(17, 24, 22, 0.98)",
-      totalBar: "rgba(148, 163, 156, 0.28)",
-      familyBar: "rgba(242, 184, 74, 0.42)",
-      activeBar: "rgba(255, 122, 95, 0.9)",
-      focusFill: "rgba(20, 184, 166, 0.16)",
-      focusStroke: "rgba(45, 212, 191, 0.9)",
-      selectionFill: "rgba(20, 184, 166, 0.18)",
-      axis: "rgba(226, 232, 228, 0.2)",
-      label: "rgba(226, 232, 228, 0.92)",
+      background: "rgba(24, 28, 24, 0.98)",
+      totalBar: "rgba(166, 173, 162, 0.28)",
+      familyBar: "rgba(209, 162, 101, 0.42)",
+      activeBar: "rgba(223, 137, 108, 0.9)",
+      focusFill: "rgba(142, 175, 153, 0.16)",
+      focusStroke: "rgba(176, 203, 184, 0.9)",
+      selectionFill: "rgba(142, 175, 153, 0.18)",
+      axis: "rgba(238, 240, 233, 0.2)",
+      label: "rgba(238, 240, 233, 0.92)",
     };
   }
 
   return {
-    background: "rgba(250, 251, 248, 0.98)",
-    totalBar: "rgba(82, 96, 88, 0.2)",
-    familyBar: "rgba(196, 127, 16, 0.28)",
-    activeBar: "rgba(213, 82, 55, 0.82)",
-    focusFill: "rgba(0, 137, 123, 0.14)",
-    focusStroke: "rgba(0, 137, 123, 0.95)",
-    selectionFill: "rgba(0, 137, 123, 0.15)",
-    axis: "rgba(23, 32, 29, 0.16)",
-    label: "rgba(82, 96, 88, 0.94)",
+    background: "rgba(255, 253, 248, 0.98)",
+    totalBar: "rgba(75, 105, 88, 0.2)",
+    familyBar: "rgba(169, 111, 50, 0.28)",
+    activeBar: "rgba(183, 95, 69, 0.82)",
+    focusFill: "rgba(75, 105, 88, 0.14)",
+    focusStroke: "rgba(75, 105, 88, 0.95)",
+    selectionFill: "rgba(75, 105, 88, 0.15)",
+    axis: "rgba(45, 49, 43, 0.16)",
+    label: "rgba(106, 111, 101, 0.94)",
   };
 }
