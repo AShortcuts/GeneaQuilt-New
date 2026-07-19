@@ -36,7 +36,8 @@ pub fn accumulate_year_range(histogram: &mut [u32], bounds: DateRange, range: Da
     }
 
     for year in start..=end {
-        let index = usize::try_from(year - bounds.start_year).expect("year index should be non-negative");
+        let index =
+            usize::try_from(year - bounds.start_year).expect("year index should be non-negative");
         histogram[index] = histogram[index].saturating_add(1);
     }
 }

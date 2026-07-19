@@ -60,7 +60,9 @@ pub fn audit_family_generation_mismatches(
         let anchored_spouse_count = spouse_ids
             .iter()
             .filter(|vertex_id| {
-                graph.person(**vertex_id).is_some_and(|person| !person.famc.is_empty())
+                graph
+                    .person(**vertex_id)
+                    .is_some_and(|person| !person.famc.is_empty())
             })
             .count();
         let component_index = graph.component_index_map()[family_id.0];

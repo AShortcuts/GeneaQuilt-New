@@ -33,14 +33,14 @@ pub fn order_layers(graph: &GeneaGraph, layout: &mut LayoutState) {
         remaining -= 1;
 
         if layout.max_layer >= 1 {
-            for layer_index in 0..layout.max_layer {
-                update_barycenter_up(graph, &layers[layer_index], &mut layout.x_positions);
+            for layer in layers.iter().take(layout.max_layer) {
+                update_barycenter_up(graph, layer, &mut layout.x_positions);
             }
         }
 
         if layout.max_layer >= 2 {
-            for layer_index in (2..=layout.max_layer).rev() {
-                update_barycenter_down(graph, &layers[layer_index], &mut layout.x_positions);
+            for layer in layers[2..=layout.max_layer].iter().rev() {
+                update_barycenter_down(graph, layer, &mut layout.x_positions);
             }
         }
 
@@ -69,7 +69,9 @@ pub fn order_layers(graph: &GeneaGraph, layout: &mut LayoutState) {
 
 fn seed_layer_order(graph: &GeneaGraph, layers: &mut [Vec<VertexId>]) {
     for layer in layers {
-        layer.sort_by(|left, right| seed_vertex_order(graph, *left).cmp(&seed_vertex_order(graph, *right)));
+        layer.sort_by(|left, right| {
+            seed_vertex_order(graph, *left).cmp(&seed_vertex_order(graph, *right))
+        });
     }
 }
 
@@ -102,7 +104,10 @@ fn barycenter(vertices: Vec<VertexId>, x_positions: &[f64]) -> Option<f64> {
         return None;
     }
 
-    let total = vertices.iter().map(|vertex| x_positions[vertex.0]).sum::<f64>();
+    let total = vertices
+        .iter()
+        .map(|vertex| x_positions[vertex.0])
+        .sum::<f64>();
     Some(total / vertices.len() as f64)
 }
 

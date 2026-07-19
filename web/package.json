@@ -2,15 +2,25 @@
   "name": "geneaquilt-web",
   "private": true,
   "version": "0.1.0",
+  "description": "The Vite browser workspace for GeneaQuilt.",
+  "license": "BSD-3-Clause",
   "type": "module",
+  "engines": {
+    "node": "^20.19.0 || ^22.13.0 || >=24.0.0",
+    "npm": ">=9"
+  },
   "scripts": {
-    "build:wasm": "PATH=\"$HOME/Library/Caches/.wasm-pack/wasm-bindgen-cargo-install-0.2.118:$PATH\" wasm-pack build ../crates/geneaquilt-wasm --target web --out-dir ../../web/pkg --release --mode no-install && rm -f pkg/.gitignore",
+    "build:wasm": "node ../scripts/build-wasm.mjs",
     "build:cloudflare": "vite build",
     "dev": "npm run build:wasm && vite",
     "build": "npm run build:wasm && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --test",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "devDependencies": {
-    "vite": "^7.1.0"
+    "vite": "^7.3.6"
   }
 }

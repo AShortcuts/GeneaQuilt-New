@@ -265,8 +265,14 @@ fn build_graph(people: Vec<Person>, families: Vec<Family>) -> Result<GeneaGraph,
     let family_ids = graph.family_vertex_ids();
     for vertex_id in family_ids {
         let (husb, wife, children) = {
-            let family = graph.family(vertex_id).expect("family vertex id must resolve");
-            (family.husb.clone(), family.wife.clone(), family.children.clone())
+            let family = graph
+                .family(vertex_id)
+                .expect("family vertex id must resolve");
+            (
+                family.husb.clone(),
+                family.wife.clone(),
+                family.children.clone(),
+            )
         };
 
         if let Some(husb) = husb.as_ref()
@@ -291,7 +297,9 @@ fn build_graph(people: Vec<Person>, families: Vec<Family>) -> Result<GeneaGraph,
     let person_ids = graph.person_vertex_ids();
     for vertex_id in person_ids {
         let (famc, fams) = {
-            let person = graph.person(vertex_id).expect("person vertex id must resolve");
+            let person = graph
+                .person(vertex_id)
+                .expect("person vertex id must resolve");
             (person.famc.clone(), person.fams.clone())
         };
 
@@ -340,21 +348,25 @@ fn normalize_name(value: &str) -> (String, Option<String>, Option<String>) {
     let mut given = None;
     let mut surname = None;
 
-    if let Some(first) = value.find('/') {
-        if let Some(second_rel) = value[first + 1..].find('/') {
-            let second = first + 1 + second_rel;
-            let given_raw = value[..first].trim();
-            let surname_raw = value[first + 1..second].trim();
-            if !given_raw.is_empty() {
-                given = Some(given_raw.to_string());
-            }
-            if !surname_raw.is_empty() {
-                surname = Some(surname_raw.to_string());
-            }
+    if let Some(first) = value.find('/')
+        && let Some(second_rel) = value[first + 1..].find('/')
+    {
+        let second = first + 1 + second_rel;
+        let given_raw = value[..first].trim();
+        let surname_raw = value[first + 1..second].trim();
+        if !given_raw.is_empty() {
+            given = Some(given_raw.to_string());
+        }
+        if !surname_raw.is_empty() {
+            surname = Some(surname_raw.to_string());
         }
     }
 
-    let display = value.replace('/', "").split_whitespace().collect::<Vec<_>>().join(" ");
+    let display = value
+        .replace('/', "")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
     (display, given, surname)
 }
 
@@ -484,7 +496,10 @@ mod tests {
         assert_eq!(person.display_name, "First Name");
         assert_eq!(
             person.properties.get("NAME"),
-            Some(&vec!["First /Name/".to_string(), "Later /Alias/".to_string()])
+            Some(&vec![
+                "First /Name/".to_string(),
+                "Later /Alias/".to_string()
+            ])
         );
     }
 

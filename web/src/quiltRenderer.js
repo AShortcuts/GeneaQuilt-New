@@ -25,7 +25,12 @@ const HIGHLIGHT_COLORS = ["#d55237", "#00897b", "#336b7a", "#c47f10"];
 export class QuiltRenderer {
   constructor(
     canvas,
-    { minimapCanvas = null, onSelect = null, onViewportChange = null, onRotationChange = null } = {},
+    {
+      minimapCanvas = null,
+      onSelect = null,
+      onViewportChange = null,
+      onRotationChange = null,
+    } = {},
   ) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
@@ -132,11 +137,7 @@ export class QuiltRenderer {
       if (this.potentialSlide === this.selectedId) {
         const focus = this.vertexById.get(this.selectedId);
         const pointer = this.screenToWorld(event.offsetX, event.offsetY);
-        if (
-          focus &&
-          pointer.x < focus.x &&
-          this.bringAndSlide.left?.candidates?.length
-        ) {
+        if (focus && pointer.x < focus.x && this.bringAndSlide.left?.candidates?.length) {
           this.startSlide("left");
           this.updateSlide(event.offsetX, event.offsetY);
           this.lastPointer = { x: event.clientX, y: event.clientY };
@@ -174,15 +175,11 @@ export class QuiltRenderer {
       }
       this.activePointers.delete(event.pointerId);
       const start = this.pointerDown;
-      const moved =
-        start &&
-        Math.hypot(event.clientX - start.x, event.clientY - start.y) > 5;
+      const moved = start && Math.hypot(event.clientX - start.x, event.clientY - start.y) > 5;
 
       if (this.slideState) {
         const destinationId =
-          this.slideState.progress >= SLIDE_COMMIT_THRESHOLD
-            ? this.slideState.destinationId
-            : null;
+          this.slideState.progress >= SLIDE_COMMIT_THRESHOLD ? this.slideState.destinationId : null;
         const shouldRestore = !destinationId;
         this.finishSlide({
           restoreCamera: shouldRestore,
@@ -298,7 +295,10 @@ export class QuiltRenderer {
     this.highlightedVertices = new Set(interaction?.highlighted_vertices ?? []);
     this.highlightedEdges = new Set(interaction?.highlighted_edges ?? []);
     this.connectorHighlights = new Map(
-      (interaction?.connector_highlights ?? []).map((connector) => [connector.edge_index, connector]),
+      (interaction?.connector_highlights ?? []).map((connector) => [
+        connector.edge_index,
+        connector,
+      ]),
     );
     this.renderStateById = new Map(
       (interaction?.vertex_states ?? []).map((state) => [state.id, state]),
@@ -459,11 +459,7 @@ export class QuiltRenderer {
     const fitWidth = bounds.width + FIT_PADDING_X * 2;
     const fitHeight = bounds.height + FIT_PADDING_Y * 2;
     const target = {
-      scale: clamp(
-        Math.min(this.width / fitWidth, this.height / fitHeight),
-        MIN_SCALE,
-        MAX_SCALE,
-      ),
+      scale: clamp(Math.min(this.width / fitWidth, this.height / fitHeight), MIN_SCALE, MAX_SCALE),
       offsetX: 0,
       offsetY: 0,
     };
@@ -483,9 +479,7 @@ export class QuiltRenderer {
       return;
     }
 
-    const vertices = ids
-      .map((id) => this.vertexById.get(id))
-      .filter(Boolean);
+    const vertices = ids.map((id) => this.vertexById.get(id)).filter(Boolean);
     if (!vertices.length) {
       return;
     }
@@ -530,7 +524,11 @@ export class QuiltRenderer {
   }
 
   centerOnWorldPoint(worldX, worldY) {
-    const rotated = rotatePoint({ x: worldX, y: worldY }, sceneCenter(this.geometry), this.rotationRadians);
+    const rotated = rotatePoint(
+      { x: worldX, y: worldY },
+      sceneCenter(this.geometry),
+      this.rotationRadians,
+    );
     this.applyCamera({
       scale: this.scale,
       offsetX: this.width / 2 - rotated.x * this.scale,
@@ -703,8 +701,10 @@ export class QuiltRenderer {
     const availableWidth = Math.max(1, this.minimapWidth - MINIMAP_PADDING * 2);
     const availableHeight = Math.max(1, this.minimapHeight - MINIMAP_PADDING * 2);
     const minimapScale = Math.min(availableWidth / bounds.width, availableHeight / bounds.height);
-    const offsetX = (this.minimapWidth - bounds.width * minimapScale) / 2 - bounds.minX * minimapScale;
-    const offsetY = (this.minimapHeight - bounds.height * minimapScale) / 2 - bounds.minY * minimapScale;
+    const offsetX =
+      (this.minimapWidth - bounds.width * minimapScale) / 2 - bounds.minX * minimapScale;
+    const offsetY =
+      (this.minimapHeight - bounds.height * minimapScale) / 2 - bounds.minY * minimapScale;
     this.minimapTransform = {
       scale: minimapScale,
       offsetX,
@@ -793,7 +793,14 @@ export class QuiltRenderer {
         if (!actual) {
           return null;
         }
-        return buildSlideCandidate(direction, focus, actual, candidate, index, controls.candidates.length);
+        return buildSlideCandidate(
+          direction,
+          focus,
+          actual,
+          candidate,
+          index,
+          controls.candidates.length,
+        );
       })
       .filter(Boolean);
 
@@ -933,9 +940,7 @@ function buildGeometry(scene, measureCtx) {
   }
 
   const vertexById = new Map(vertices.map((vertex) => [vertex.id, vertex]));
-  const edges = scene.edges
-    .map((edge) => layoutEdge(edge, vertexById))
-    .filter(Boolean);
+  const edges = scene.edges.map((edge) => layoutEdge(edge, vertexById)).filter(Boolean);
   const edgeByIndex = new Map(edges.map((edge) => [edge.index, edge]));
   const connectionRanges = buildConnectionRanges(edges);
 
@@ -1014,10 +1019,7 @@ function layoutPersonBand(vertices, x, y) {
     x,
     y,
     width: bandWidth,
-    height:
-      vertices.length > 0
-        ? (vertices.length - 1) * rowPitch + rowHeight
-        : rowHeight,
+    height: vertices.length > 0 ? (vertices.length - 1) * rowPitch + rowHeight : rowHeight,
     vertices: laidOut,
   };
 }
@@ -1193,7 +1195,11 @@ function boundsFromPoints(points) {
   };
 }
 
-function computeRotatedBounds(rects, radians, center = sceneCenter({ bounds: computeBoundsFromRects(rects) })) {
+function computeRotatedBounds(
+  rects,
+  radians,
+  center = sceneCenter({ bounds: computeBoundsFromRects(rects) }),
+) {
   if (!rects.length) {
     return { minX: 0, minY: 0, width: 1, height: 1 };
   }
@@ -1474,7 +1480,12 @@ function drawBringAndSlide(ctx, renderer) {
     ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
     ctx.strokeStyle = active ? "rgba(0, 137, 123, 0.92)" : "rgba(23, 32, 29, 0.16)";
     ctx.lineWidth = 1 / renderer.scale;
-    ctx.fillRect(candidate.overlay.x, candidate.overlay.y, candidate.overlay.width, candidate.overlay.height);
+    ctx.fillRect(
+      candidate.overlay.x,
+      candidate.overlay.y,
+      candidate.overlay.width,
+      candidate.overlay.height,
+    );
     ctx.strokeRect(
       candidate.overlay.x,
       candidate.overlay.y,
@@ -1485,17 +1496,31 @@ function drawBringAndSlide(ctx, renderer) {
     ctx.fillStyle = active ? "rgba(0, 137, 123, 1)" : "rgba(82, 96, 88, 0.94)";
     ctx.font = '9px Georgia, "Times New Roman", serif';
     ctx.textBaseline = "top";
-    ctx.fillText(candidate.relationLabel, candidate.overlay.x + 4 / renderer.scale, candidate.overlay.y + 3 / renderer.scale);
+    ctx.fillText(
+      candidate.relationLabel,
+      candidate.overlay.x + 4 / renderer.scale,
+      candidate.overlay.y + 3 / renderer.scale,
+    );
 
     ctx.fillStyle = active ? "rgba(0, 137, 123, 1)" : "#17201d";
     ctx.font = PERSON_FONT;
     ctx.textBaseline = "top";
-    ctx.fillText(candidate.label, candidate.overlay.x + 4 / renderer.scale, candidate.overlay.y + 13 / renderer.scale);
+    ctx.fillText(
+      candidate.label,
+      candidate.overlay.x + 4 / renderer.scale,
+      candidate.overlay.y + 13 / renderer.scale,
+    );
   }
 
   ctx.fillStyle = "rgba(0, 137, 123, 0.96)";
   ctx.beginPath();
-  ctx.arc(renderer.slideState.cursor.x, renderer.slideState.cursor.y, 4 / renderer.scale, 0, Math.PI * 2);
+  ctx.arc(
+    renderer.slideState.cursor.x,
+    renderer.slideState.cursor.y,
+    4 / renderer.scale,
+    0,
+    Math.PI * 2,
+  );
   ctx.fill();
   ctx.restore();
 }
@@ -1527,9 +1552,9 @@ function drawEdges(ctx, geometry, renderer) {
       ? highlightFillColor(highlightColors)
       : timelineRelated
         ? "rgba(51, 107, 122, 0.84)"
-      : searchRelated
-        ? "rgba(196, 127, 16, 0.88)"
-        : renderer.palette.edgeDefault;
+        : searchRelated
+          ? "rgba(196, 127, 16, 0.88)"
+          : renderer.palette.edgeDefault;
     ctx.strokeStyle = renderer.palette.edgeHighlightStroke;
     ctx.lineWidth = highlighted ? 1.4 / renderer.scale : 0;
 
@@ -1609,11 +1634,11 @@ function drawPerson(ctx, vertex, renderer) {
       ? "rgba(213, 82, 55, 0.9)"
       : timelineFocused
         ? "rgba(51, 107, 122, 0.72)"
-      : searched
-        ? "rgba(196, 127, 16, 0.72)"
-        : highlighted
-          ? highlightColor
-          : renderer.palette.personDense;
+        : searched
+          ? "rgba(196, 127, 16, 0.72)"
+          : highlighted
+            ? highlightColor
+            : renderer.palette.personDense;
     ctx.fillRect(vertex.x, vertex.y + vertex.height * 0.12, vertex.width, vertex.height * 0.76);
     return;
   }
@@ -1623,7 +1648,7 @@ function drawPerson(ctx, vertex, renderer) {
       ? "rgba(244, 223, 217, 0.92)"
       : timelineFocused
         ? "rgba(226, 240, 237, 0.94)"
-      : "rgba(243, 234, 210, 0.88)";
+        : "rgba(243, 234, 210, 0.88)";
     ctx.fillRect(vertex.x - 2, vertex.y + 1, vertex.width + 4, vertex.height - 2);
   }
 
@@ -1631,11 +1656,11 @@ function drawPerson(ctx, vertex, renderer) {
     ? "#d55237"
     : timelineFocused
       ? "#336b7a"
-    : highlighted
-      ? highlightColor
-      : searched
-        ? "#c47f10"
-        : renderer.palette.personText;
+      : highlighted
+        ? highlightColor
+        : searched
+          ? "#c47f10"
+          : renderer.palette.personText;
   ctx.font = PERSON_FONT;
   ctx.textBaseline = "top";
   ctx.fillText(vertex.label, vertex.x, vertex.y);
@@ -1660,17 +1685,16 @@ function drawFamily(ctx, vertex, renderer) {
       ? "rgba(213, 82, 55, 0.28)"
       : timelineFocused
         ? "rgba(51, 107, 122, 0.18)"
-      : searched
-        ? "rgba(196, 127, 16, 0.2)"
-        : highlightFillColorOverlay(highlightColors);
+        : searched
+          ? "rgba(196, 127, 16, 0.2)"
+          : highlightFillColorOverlay(highlightColors);
     ctx.fillRect(vertex.x, vertex.y, vertex.width, vertex.height);
   }
 
-  ctx.strokeStyle =
-    selected
-      ? "rgba(255,255,255,0.94)"
-      : timelineFocused
-        ? "rgba(51, 107, 122, 0.94)"
+  ctx.strokeStyle = selected
+    ? "rgba(255,255,255,0.94)"
+    : timelineFocused
+      ? "rgba(51, 107, 122, 0.94)"
       : searched
         ? "rgba(255, 244, 226, 0.94)"
         : highlighted
@@ -1684,14 +1708,13 @@ function drawFamily(ctx, vertex, renderer) {
     (renderer.expandedNames || selected || searched || timelineFocused) &&
     renderer.scale >= FAMILY_TEXT_THRESHOLD
   ) {
-    ctx.fillStyle =
-      selected
-        ? "white"
-        : timelineFocused
-          ? "#336b7a"
-          : highlighted
-            ? highlightColor
-            : renderer.palette.familyBaseText;
+    ctx.fillStyle = selected
+      ? "white"
+      : timelineFocused
+        ? "#336b7a"
+        : highlighted
+          ? highlightColor
+          : renderer.palette.familyBaseText;
     ctx.font = FAMILY_FONT;
     ctx.textBaseline = "top";
     ctx.fillText(vertex.label, vertex.x + 2, vertex.y + 2);
@@ -1823,10 +1846,8 @@ function buildSlideCandidate(direction, focus, actual, candidate, index, total) 
   const angle = Math.PI / (total + 1);
   const i = index + 1;
   const distance =
-    direction === "right"
-      ? Math.max((2 * focus.height) / angle, SLIDE_DISTANCE)
-      : SLIDE_DISTANCE;
-  const overlayWidth = Math.max(actual.width + 12, (candidate.label.length * 6.5) + 18);
+    direction === "right" ? Math.max((2 * focus.height) / angle, SLIDE_DISTANCE) : SLIDE_DISTANCE;
+  const overlayWidth = Math.max(actual.width + 12, candidate.label.length * 6.5 + 18);
   const overlayHeight = Math.max(actual.height + 12, 28);
   const overlayX =
     direction === "left"
@@ -1836,17 +1857,17 @@ function buildSlideCandidate(direction, focus, actual, candidate, index, total) 
   const line =
     direction === "left"
       ? {
-        x1: focus.x,
-        y1: focus.centerY,
-        x2: overlayX + overlayWidth,
-        y2: overlayY + overlayHeight / 2,
-      }
+          x1: focus.x,
+          y1: focus.centerY,
+          x2: overlayX + overlayWidth,
+          y2: overlayY + overlayHeight / 2,
+        }
       : {
-        x1: focus.x + focus.width,
-        y1: focus.centerY,
-        x2: overlayX,
-        y2: overlayY + overlayHeight / 2,
-      };
+          x1: focus.x + focus.width,
+          y1: focus.centerY,
+          x2: overlayX,
+          y2: overlayY + overlayHeight / 2,
+        };
 
   return {
     id: actual.id,
@@ -1895,10 +1916,6 @@ function projectOntoSegment(line, point) {
     point: projected,
     distanceSq: (point.x - projected.x) ** 2 + (point.y - projected.y) ** 2,
   };
-}
-
-function lerp(a, b, u) {
-  return a + (b - a) * u;
 }
 
 function highlightStrokeColor(colorIndices) {
@@ -2001,7 +2018,6 @@ function currentViewportWorldQuad(renderer) {
 }
 
 function buildInteractiveHtmlDocument(renderer, { title, autoPrint }) {
-  const geometry = renderer.geometry;
   const summary = renderer.scene?.summary ?? null;
   const svg = buildExportSvgMarkup(renderer, title);
   const subtitle = summary
@@ -2415,7 +2431,8 @@ function buildExportEdgeMarkup(geometry, renderer) {
       const searchRelated =
         renderer.searchMatches.has(edge.personId) || renderer.searchMatches.has(edge.familyId);
       const timelineRelated =
-        renderer.timelineFocusIds.has(edge.personId) || renderer.timelineFocusIds.has(edge.familyId);
+        renderer.timelineFocusIds.has(edge.personId) ||
+        renderer.timelineFocusIds.has(edge.familyId);
       const fill = highlighted
         ? highlightFillColor(highlightColors)
         : timelineRelated
@@ -2514,7 +2531,8 @@ function buildExportFamilyMarkup(vertex, renderer, alpha) {
       : highlighted
         ? highlightColor
         : renderer.palette.familyBaseText;
-  const showLabel = renderer.expandedNames || selected || searched || timelineFocused || highlighted;
+  const showLabel =
+    renderer.expandedNames || selected || searched || timelineFocused || highlighted;
 
   return `<rect x="${formatExportNumber(vertex.x)}" y="${formatExportNumber(vertex.y)}" width="${formatExportNumber(vertex.width)}" height="${formatExportNumber(vertex.height)}" fill="${renderer.palette.familyBaseFill}" opacity="${formatExportNumber(alpha)}" />
 <rect x="${formatExportNumber(vertex.x)}" y="${formatExportNumber(vertex.y)}" width="${formatExportNumber(vertex.width)}" height="${formatExportNumber(vertex.height)}" fill="url(#family-stripe-pattern)" opacity="${formatExportNumber(alpha)}" />
@@ -2556,13 +2574,17 @@ function roundRect(ctx, x, y, width, height, radius) {
 function pointInPolygon(point, polygon) {
   let inside = false;
 
-  for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index, index += 1) {
+  for (
+    let index = 0, previous = polygon.length - 1;
+    index < polygon.length;
+    previous = index, index += 1
+  ) {
     const current = polygon[index];
     const prior = polygon[previous];
     const intersects =
       current.y > point.y !== prior.y > point.y &&
       point.x <
-        ((prior.x - current.x) * (point.y - current.y)) / ((prior.y - current.y) || Number.EPSILON) +
+        ((prior.x - current.x) * (point.y - current.y)) / (prior.y - current.y || Number.EPSILON) +
           current.x;
 
     if (intersects) {

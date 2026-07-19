@@ -24,7 +24,7 @@ export function shouldFitAfterSourceLoad(sourceKind) {
   return sourceKind === "sample";
 }
 
-export function normalizeSurfaceFinish(value) {
+export function normalizeSurfaceFinish() {
   return "simple";
 }
 

@@ -2,10 +2,15 @@
   "name": "geneaquilt-wasm",
   "type": "module",
   "collaborators": [
-    "OpenAI Codex"
+    "GeneaQuilt contributors"
   ],
+  "description": "WebAssembly bridge exposing the GeneaQuilt Rust engine to browsers",
   "version": "0.1.0",
   "license": "BSD-3-Clause",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AShortcuts/GeneaQuilt-New"
+  },
   "files": [
     "geneaquilt_wasm_bg.wasm",
     "geneaquilt_wasm.js",

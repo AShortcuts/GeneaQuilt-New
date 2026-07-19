@@ -250,7 +250,11 @@ impl GeneaGraph {
             while let Some(current) = queue.pop_front() {
                 component.push(current);
 
-                for neighbor in self.successors(current).into_iter().chain(self.predecessors(current)) {
+                for neighbor in self
+                    .successors(current)
+                    .into_iter()
+                    .chain(self.predecessors(current))
+                {
                     if !visited[neighbor.0] {
                         visited[neighbor.0] = true;
                         queue.push_back(neighbor);
@@ -261,7 +265,7 @@ impl GeneaGraph {
             components.push(component);
         }
 
-        components.sort_by(|left, right| right.len().cmp(&left.len()));
+        components.sort_by_key(|component| std::cmp::Reverse(component.len()));
         components
     }
 

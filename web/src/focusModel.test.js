@@ -1,11 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import {
-  buildFocusModel,
-  describeFocusModel,
-  interpolateCamera,
-} from "./focusModel.js";
+import { buildFocusModel, describeFocusModel, interpolateCamera } from "./focusModel.js";
 
 test("buildFocusModel coordinates selection, pins, search, viewport, and timeline", () => {
   const model = buildFocusModel({
@@ -92,5 +88,4 @@ test("interpolateCamera eases between camera states", () => {
     ),
     { scale: 3, offsetX: 100, offsetY: 100 },
   );
-}
-);
+});

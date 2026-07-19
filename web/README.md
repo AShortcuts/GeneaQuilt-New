@@ -1,24 +1,27 @@
-# Web Shell
+# Web Workspace
 
-This directory is the browser application shell.
+This directory contains the Vite browser application: the Canvas renderer, camera and gestures, search and details panels, timeline, minimap, exports, and the thin bridge to the Rust/WebAssembly engine.
 
-Planned responsibilities:
+`web` is an npm workspace managed from the repository root. Install dependencies and use the primary commands there:
 
-- file upload and drag-and-drop
-- Wasm bootstrap and later worker orchestration
-- renderer and camera
-- search/details/timeline/minimap panels
-- Bring-and-Slide input controller
+```sh
+npm install
+npm run dev
+```
 
-Recommended stack:
+Keeping the browser application in its own workspace prevents frontend configuration and dependencies from being mixed with the Rust crates while preserving a single contributor-facing command surface.
 
-- plain JavaScript modules
-- Canvas 2D first, with a WebGL upgrade path for dense edge rendering
-- a thin bridge to the Rust/Wasm engine
+## Workspace commands
 
-Build notes:
+These commands can also be run from this directory when working specifically on the browser application:
 
-- `npm run build:wasm` generates the browser package into `web/pkg`
-- `npm run dev` rebuilds the Wasm package first, then starts Vite
-- `npm run build:cloudflare` runs `vite build` against the committed `web/pkg` package for hosts that do not provide Rust or `wasm-pack`
-- the generated `pkg` directory is tracked for deployment; run `npm run build:wasm` locally and commit `web/pkg` whenever the Wasm crate changes
+- `npm run dev` rebuilds the Wasm package and starts Vite
+- `npm test` runs the browser module tests with Node's built-in test runner
+- `npm run lint` checks the workspace with ESLint
+- `npm run format` formats the workspace with Prettier
+- `npm run build` rebuilds Wasm and creates `dist`
+- `npm run build:wasm` regenerates the browser package in `pkg`
+- `npm run build:cloudflare` builds Vite against the committed `pkg` package
+- `npm run preview` previews the latest production build
+
+The generated `pkg` directory is intentionally tracked for deployment. Run `npm run build:wasm` and commit the resulting `pkg` changes whenever `crates/geneaquilt-wasm` or its Rust dependencies change.

@@ -44,14 +44,19 @@ fn run() -> Result<(), String> {
         return Err("usage: cargo run -p geneaquilt-layout --bin geneaquilt-audit -- <path-to-gedcom> [--limit N] [--ranker original|v2]".to_string());
     };
 
-    let source = fs::read_to_string(&path).map_err(|error| format!("failed to read {path}: {error}"))?;
-    let graph = parse_gedcom(&source).map_err(|error| format!("failed to parse GEDCOM: {error}"))?;
+    let source =
+        fs::read_to_string(&path).map_err(|error| format!("failed to read {path}: {error}"))?;
+    let graph =
+        parse_gedcom(&source).map_err(|error| format!("failed to parse GEDCOM: {error}"))?;
     let state = match ranker {
         Ranker::Original => assign_layers(&graph),
         Ranker::V2 => assign_layers_v2(&graph),
     };
     let mismatches = audit_family_generation_mismatches(&graph, &state);
-    let cycle_component = mismatches.iter().filter(|mismatch| mismatch.cycle_component).count();
+    let cycle_component = mismatches
+        .iter()
+        .filter(|mismatch| mismatch.cycle_component)
+        .count();
     let anchored = mismatches
         .iter()
         .filter(|mismatch| mismatch.anchored_spouse_count > 0)

@@ -13,7 +13,10 @@ enum DoiNode {
     Edge(usize),
 }
 
-pub fn compute_selection_doi(graph: &GeneaGraph, selection: SelectionState) -> Vec<Option<DoiValue>> {
+pub fn compute_selection_doi(
+    graph: &GeneaGraph,
+    selection: SelectionState,
+) -> Vec<Option<DoiValue>> {
     let trace_result = trace(graph, selection);
     let mut vertex_distances = vec![usize::MAX; graph.vertex_count()];
     let mut edge_distances = vec![usize::MAX; graph.edge_count()];

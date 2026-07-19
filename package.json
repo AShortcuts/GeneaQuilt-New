@@ -1,0 +1,41 @@
+{
+  "name": "geneaquilt",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A browser-first GeneaQuilt implementation backed by Rust and WebAssembly.",
+  "license": "BSD-3-Clause",
+  "type": "module",
+  "engines": {
+    "node": "^20.19.0 || ^22.13.0 || >=24.0.0",
+    "npm": ">=9"
+  },
+  "workspaces": [
+    "web"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=geneaquilt-web",
+    "build": "npm run build --workspace=geneaquilt-web",
+    "build:wasm": "npm run build:wasm --workspace=geneaquilt-web",
+    "build:cloudflare": "npm run build:cloudflare --workspace=geneaquilt-web",
+    "preview": "npm run preview --workspace=geneaquilt-web",
+    "test": "npm run test:web && npm run test:rust",
+    "test:web": "npm test --workspace=geneaquilt-web",
+    "test:rust": "cargo test --workspace",
+    "lint": "npm run lint:js && npm run lint:rust",
+    "lint:js": "eslint web scripts",
+    "lint:rust": "cargo clippy --workspace --all-targets -- -D warnings",
+    "format": "npm run format:js && npm run format:rust",
+    "format:js": "prettier --write web scripts package.json package-lock.json README.md CONTRIBUTING.md .github",
+    "format:rust": "cargo fmt --all",
+    "format:check": "npm run format:check:js && npm run format:check:rust",
+    "format:check:js": "prettier --check web scripts package.json package-lock.json README.md CONTRIBUTING.md .github",
+    "format:check:rust": "cargo fmt --all -- --check",
+    "check": "npm run format:check && npm run lint && npm test && npm run build:cloudflare"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.7.0",
+    "globals": "17.7.0",
+    "prettier": "3.9.5"
+  }
+}

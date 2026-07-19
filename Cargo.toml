@@ -8,8 +8,10 @@ resolver = "2"
 
 [workspace.package]
 edition = "2024"
+rust-version = "1.85"
 license = "BSD-3-Clause"
-authors = ["OpenAI Codex"]
+authors = ["GeneaQuilt contributors"]
+repository = "https://github.com/AShortcuts/GeneaQuilt-New"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

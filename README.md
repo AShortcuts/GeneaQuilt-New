@@ -36,42 +36,76 @@ This repository does not attempt to port Swing menus, Piccolo2D node classes, Ec
 
 ## Repository layout
 
+- `package.json`: npm workspace definition and the contributor-facing command surface
+- `Cargo.toml`: Rust workspace definition for the engine and WebAssembly crates
 - `crates/geneaquilt-core`: GEDCOM parsing, graph model, selection, DOI/focus, search, and timeline logic
 - `crates/geneaquilt-layout`: generation ranking, ordering, layout auditing, and packed quilt layout output
 - `crates/geneaquilt-wasm`: WebAssembly bridge exposed to the browser
 - `web/`: Vite browser app, Canvas renderer, controls, timeline, minimap, export, and UI state
+- `scripts/`: portable repository automation used by the npm workspaces
 - `docs/architecture.md`: design rationale for the browser/Rust split
 - `docs/source-mapping.md`: mapping from original Java concepts to this repo's modules
 
-## Running the web app
+The repository root is the control center for both ecosystems. Contributors can use npm and Cargo without moving into a subdirectory.
+
+## Prerequisites
+
+- Node.js `20.19+`, `22.13+`, or `24+`; Node.js 22 LTS is recommended and recorded in `.nvmrc`
+- npm 9 or newer
+- the stable Rust toolchain
+- [`wasm-pack`](https://rustwasm.github.io/wasm-pack/installer/) for development and full builds
+
+## Quick start
 
 ```sh
-cd web
 npm install
 npm run dev
 ```
 
-`npm run dev` rebuilds the Wasm package first, then starts Vite.
+Open <http://localhost:5173>. The development command rebuilds the Rust WebAssembly package first and then starts Vite.
 
 For a production build:
 
 ```sh
-cd web
 npm run build
 ```
 
 The generated Wasm package is written to `web/pkg`. This directory is committed so hosts without Rust, Cargo, or `wasm-pack` can still build the static Vite site.
+
+## Commands
+
+| Command                    | Purpose                                                             |
+| -------------------------- | ------------------------------------------------------------------- |
+| `npm run dev`              | Rebuild Wasm and start Vite                                         |
+| `npm run build`            | Rebuild Wasm and create a production build                          |
+| `npm run build:wasm`       | Regenerate `web/pkg`                                                |
+| `npm run build:cloudflare` | Build the web app from the committed Wasm package                   |
+| `npm run preview`          | Preview the production build locally                                |
+| `npm test`                 | Run the JavaScript and Rust test suites                             |
+| `npm run lint`             | Run ESLint and Clippy across both workspaces                        |
+| `npm run format`           | Format JavaScript/CSS with Prettier and Rust with rustfmt           |
+| `npm run check`            | Run formatting checks, linting, tests, and the deployable web build |
+
+The root npm workspace forwards web commands to `geneaquilt-web`; direct commands such as `cargo test`, `cargo fmt`, and `cargo clippy` continue to work normally.
 
 ## Cloudflare Pages
 
 Use these build settings:
 
 - Framework preset: `Vite` if available, otherwise `None`
-- Root directory: `web`
+- Root directory: the repository root
 - Build command: `npm run build:cloudflare`
-- Build output directory: `dist`
+- Build output directory: `web/dist`
 
-Cloudflare does not need Rust or `wasm-pack` with this setup. Before committing changes that affect `crates/geneaquilt-wasm` or its dependencies, run `cd web && npm run build:wasm` locally and commit the updated `web/pkg` files. Cloudflare then only runs `vite build` against the prebuilt Wasm package.
+Cloudflare installs the root npm workspace and does not need Rust or `wasm-pack`. Before committing changes that affect `crates/geneaquilt-wasm` or its dependencies, run `npm run build:wasm` locally and commit the updated `web/pkg` files. Cloudflare then runs Vite against that prebuilt package.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for environment setup, the complete command reference, WebAssembly regeneration rules, and pull request guidance.
+
+## License and attribution
+
+This project is available under the [BSD 3-Clause License](LICENSE). It is a browser-first port of the ideas and behavior in the [original GeneaQuilts project](https://github.com/jdfekete/geneaquilt) by Jean-Daniel Fekete, Pierre Dragicevic, and INRIA; their copyright notice is retained in the license.
 
 ## Current status
 

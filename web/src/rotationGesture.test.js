@@ -1,10 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import {
-  anchoredRotationDegrees,
-  normalizeRotationDegrees,
-} from "./quiltRenderer.js";
+import { anchoredRotationDegrees, normalizeRotationDegrees } from "./quiltRenderer.js";
 
 test("anchoredRotationDegrees rotates around the first pointer", () => {
   assert.equal(

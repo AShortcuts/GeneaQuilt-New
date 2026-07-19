@@ -69,7 +69,10 @@ pub fn assign_layers_v2(graph: &GeneaGraph) -> LayoutState {
 
 impl<'a> ComponentContext<'a> {
     fn new(graph: &'a GeneaGraph, vertices: Vec<VertexId>, seed_layers: &'a [isize]) -> Self {
-        let vertex_set = vertices.iter().map(|vertex| vertex.0).collect::<HashSet<_>>();
+        let vertex_set = vertices
+            .iter()
+            .map(|vertex| vertex.0)
+            .collect::<HashSet<_>>();
         let family_vertices = vertices
             .iter()
             .copied()
@@ -87,12 +90,7 @@ impl<'a> ComponentContext<'a> {
             .filter(|vertex| vertex_has_dates(graph, *vertex))
             .collect::<Vec<_>>();
         let mismatch_clusters = mismatch_clusters(graph, &vertex_set, &seed_mismatched_families);
-        let blocks = build_move_blocks(
-            graph,
-            &vertices,
-            &vertex_set,
-            &seed_mismatched_families,
-        );
+        let blocks = build_move_blocks(graph, &vertices, &vertex_set, &seed_mismatched_families);
 
         Self {
             graph,
@@ -177,7 +175,10 @@ fn optimize_mismatch_clusters(
             continue;
         }
 
-        let cluster_set = cluster.iter().map(|vertex| vertex.0).collect::<HashSet<_>>();
+        let cluster_set = cluster
+            .iter()
+            .map(|vertex| vertex.0)
+            .collect::<HashSet<_>>();
         let cluster_blocks = context
             .blocks
             .iter()
@@ -256,7 +257,7 @@ fn beam_search_cluster(
             break;
         }
 
-        candidates.sort_by(|left, right| compare_states(left, right));
+        candidates.sort_by(compare_states);
         candidates.truncate(CLUSTER_SEARCH_WIDTH);
         frontier = candidates;
     }
@@ -265,7 +266,10 @@ fn beam_search_cluster(
 }
 
 fn cluster_signature(layers: &[isize], cluster_order: &[usize]) -> Vec<isize> {
-    cluster_order.iter().map(|index| layers[*index]).collect::<Vec<_>>()
+    cluster_order
+        .iter()
+        .map(|index| layers[*index])
+        .collect::<Vec<_>>()
 }
 
 fn is_state_better(candidate: &SearchState, current: &SearchState) -> bool {
@@ -358,7 +362,12 @@ fn spouse_alignment_cost(context: &ComponentContext<'_>, layers: &[isize]) -> i6
         let expected = layers[family_id.0] - 1;
         let anchored_spouses = spouses
             .iter()
-            .filter(|vertex| context.graph.person(**vertex).is_some_and(|person| !person.famc.is_empty()))
+            .filter(|vertex| {
+                context
+                    .graph
+                    .person(**vertex)
+                    .is_some_and(|person| !person.famc.is_empty())
+            })
             .count() as i64;
         let spouse_gap_sum = spouses
             .iter()
@@ -377,8 +386,16 @@ fn spouse_alignment_cost(context: &ComponentContext<'_>, layers: &[isize]) -> i6
         total += mismatch_presence * (4 + anchored_spouses * 2);
 
         if spouses.len() >= 2 {
-            let min_layer = spouses.iter().map(|vertex| layers[vertex.0]).min().unwrap_or(0);
-            let max_layer = spouses.iter().map(|vertex| layers[vertex.0]).max().unwrap_or(0);
+            let min_layer = spouses
+                .iter()
+                .map(|vertex| layers[vertex.0])
+                .min()
+                .unwrap_or(0);
+            let max_layer = spouses
+                .iter()
+                .map(|vertex| layers[vertex.0])
+                .max()
+                .unwrap_or(0);
             let pair_gap = (max_layer - min_layer).abs() as i64;
             total += pair_gap * pair_gap;
         }
@@ -544,7 +561,12 @@ fn is_move_feasible(
     true
 }
 
-fn moved_layer(layers: &[isize], block_set: &HashSet<usize>, vertex: VertexId, delta: isize) -> isize {
+fn moved_layer(
+    layers: &[isize],
+    block_set: &HashSet<usize>,
+    vertex: VertexId,
+    delta: isize,
+) -> isize {
     if block_set.contains(&vertex.0) {
         layers[vertex.0] + delta
     } else {
@@ -629,12 +651,10 @@ fn family_gap(graph: &GeneaGraph, layers: &[isize], family_id: VertexId) -> usiz
     graph
         .ascendants(family_id)
         .into_iter()
-        .map(|spouse_id| {
-            layers[spouse_id.0]
-                .abs_diff(family_layer - 1)
-        })
+        .map(|spouse_id| layers[spouse_id.0].abs_diff(family_layer - 1))
         .chain(
-            graph.descendants(family_id)
+            graph
+                .descendants(family_id)
                 .into_iter()
                 .map(|child_id| layers[child_id.0].abs_diff(family_layer + 1)),
         )
@@ -669,7 +689,11 @@ fn build_move_blocks(
         unique.insert(vec![vertex.0]);
     }
 
-    for family_id in vertices.iter().copied().filter(|vertex| graph.is_family(*vertex)) {
+    for family_id in vertices
+        .iter()
+        .copied()
+        .filter(|vertex| graph.is_family(*vertex))
+    {
         let spouses = graph
             .ascendants(family_id)
             .into_iter()
@@ -681,7 +705,10 @@ fn build_move_blocks(
             .filter(|vertex| vertex_set.contains(&vertex.0))
             .collect::<Vec<_>>();
 
-        insert_block(&mut unique, std::iter::once(family_id).chain(spouses.iter().copied()));
+        insert_block(
+            &mut unique,
+            std::iter::once(family_id).chain(spouses.iter().copied()),
+        );
         insert_block(
             &mut unique,
             std::iter::once(family_id).chain(children.iter().copied()),
@@ -724,10 +751,7 @@ fn build_move_blocks(
         .collect::<Vec<_>>()
 }
 
-fn insert_block(
-    unique: &mut BTreeSet<Vec<usize>>,
-    vertices: impl Iterator<Item = VertexId>,
-) {
+fn insert_block(unique: &mut BTreeSet<Vec<usize>>, vertices: impl Iterator<Item = VertexId>) {
     let mut block = vertices.map(|vertex| vertex.0).collect::<Vec<_>>();
     if block.is_empty() {
         return;
@@ -819,7 +843,12 @@ fn mismatch_clusters(
             }
         }
 
-        clusters.push(cluster_vertices.into_iter().map(VertexId).collect::<Vec<_>>());
+        clusters.push(
+            cluster_vertices
+                .into_iter()
+                .map(VertexId)
+                .collect::<Vec<_>>(),
+        );
     }
 
     clusters
@@ -914,7 +943,8 @@ fn ancestry_branch_closure(graph: &GeneaGraph, start: VertexId) -> Vec<VertexId>
 }
 
 fn collect_component_edges(graph: &GeneaGraph, vertex_set: &HashSet<usize>) -> Vec<usize> {
-    graph.edges()
+    graph
+        .edges()
         .iter()
         .enumerate()
         .filter_map(|(edge_index, edge)| {

@@ -1,9 +1,5 @@
 import { loadEngineModule } from "./engine.js";
-import {
-  appSurfaceState,
-  matchesPopupState,
-  shouldFitAfterSourceLoad,
-} from "./appState.js";
+import { appSurfaceState, matchesPopupState, shouldFitAfterSourceLoad } from "./appState.js";
 import { buildFocusModel, describeFocusModel } from "./focusModel.js";
 import { QuiltRenderer } from "./quiltRenderer.js";
 
@@ -288,7 +284,6 @@ export async function createApp() {
   const detailSummary = page.querySelector(".detail-summary");
   const detailRelations = page.querySelector(".detail-relations");
   const detailProperties = page.querySelector(".detail-properties");
-  const detailActions = page.querySelector(".detail-actions");
   const pinHighlightButton = page.querySelector(".pin-highlight-button");
   const clearHighlightsButton = page.querySelector(".clear-highlights-button");
   const highlightStack = page.querySelector(".highlight-stack");
@@ -459,10 +454,10 @@ export async function createApp() {
         <div class="relation-row">
           <span>Bring and slide</span>
           <strong>${
-          details.kind === "person"
-            ? "Drag left for parents/siblings, right for spouses/children."
-            : "Select a person to use bring-and-slide navigation."
-        }</strong>
+            details.kind === "person"
+              ? "Drag left for parents/siblings, right for spouses/children."
+              : "Select a person to use bring-and-slide navigation."
+          }</strong>
         </div>
         <div class="relation-row">
           <span>Parents</span>
@@ -479,28 +474,28 @@ export async function createApp() {
         <div class="relation-row">
           <span>Graph links</span>
           <strong>${
-          details.kind === "person"
-            ? [
-                details.parent_families.length
-                  ? `parent families: ${details.parent_families.map(escapeHtml).join(", ")}`
-                  : null,
-                details.spouse_families.length
-                  ? `spouse families: ${details.spouse_families.map(escapeHtml).join(", ")}`
-                  : null,
-              ]
-                .filter(Boolean)
-                .join(" · ") || "None"
-            : [
-                details.predecessors.length
-                  ? `earlier links: ${details.predecessors.map(escapeHtml).join(", ")}`
-                  : null,
-                details.successors.length
-                  ? `later links: ${details.successors.map(escapeHtml).join(", ")}`
-                  : null,
-              ]
-                .filter(Boolean)
-                .join(" · ") || "None"
-        }</strong>
+            details.kind === "person"
+              ? [
+                  details.parent_families.length
+                    ? `parent families: ${details.parent_families.map(escapeHtml).join(", ")}`
+                    : null,
+                  details.spouse_families.length
+                    ? `spouse families: ${details.spouse_families.map(escapeHtml).join(", ")}`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ") || "None"
+              : [
+                  details.predecessors.length
+                    ? `earlier links: ${details.predecessors.map(escapeHtml).join(", ")}`
+                    : null,
+                  details.successors.length
+                    ? `later links: ${details.successors.map(escapeHtml).join(", ")}`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ") || "None"
+          }</strong>
         </div>
       </div>
     `;
@@ -526,19 +521,13 @@ export async function createApp() {
 
   function renderEmptyDetails() {
     detailSummary.innerHTML = `<div class="empty-state">No selection</div>`;
-    detailRelations.innerHTML =
-      `<div class="empty-state">Click a person or family to inspect relationships and tracing.</div>`;
-    detailProperties.innerHTML =
-      `<div class="empty-state">Structured properties appear here after selecting a node.</div>`;
+    detailRelations.innerHTML = `<div class="empty-state">Click a person or family to inspect relationships and tracing.</div>`;
+    detailProperties.innerHTML = `<div class="empty-state">Structured properties appear here after selecting a node.</div>`;
   }
 
   function renderTimelineFocusDetails(focus) {
     const scopeLabel =
-      focus.scope === "people"
-        ? "People"
-        : focus.scope === "families"
-          ? "Families"
-          : "All items";
+      focus.scope === "people" ? "People" : focus.scope === "families" ? "Families" : "All items";
     detailSummary.innerHTML = `
       <div class="detail-compact">
         <div class="detail-heading">
@@ -570,8 +559,7 @@ export async function createApp() {
       </div>
     `;
 
-    detailProperties.innerHTML =
-      `<div class="empty-state">Clear the timeline range or select a node to inspect detailed properties.</div>`;
+    detailProperties.innerHTML = `<div class="empty-state">Clear the timeline range or select a node to inspect detailed properties.</div>`;
   }
 
   function renderTimeline(summary) {
@@ -593,22 +581,16 @@ export async function createApp() {
       return;
     }
 
-    const activeLabel =
-      selectedId || pinnedHighlightIds.length ? "active" : "visible";
+    const activeLabel = selectedId || pinnedHighlightIds.length ? "active" : "visible";
     const activeText = summary.active_range
       ? `${activeLabel} ${summary.active_range[0]}-${summary.active_range[1]}`
       : "no active date focus";
     const scopeText =
-      summary.scope === "people"
-        ? "people"
-        : summary.scope === "families"
-          ? "families"
-          : "items";
+      summary.scope === "people" ? "people" : summary.scope === "families" ? "families" : "items";
     const focusText = timelineFocus
       ? `range ${timelineFocus.start_year}-${timelineFocus.end_year} · ${timelineFocus.matching_vertices_with_dates} ${scopeText}`
       : activeText;
-    timelineSummary.textContent =
-      `${summary.start_year}-${summary.end_year} · ${summary.total_vertices_with_dates} ${scopeText} · ${focusText}`;
+    timelineSummary.textContent = `${summary.start_year}-${summary.end_year} · ${summary.total_vertices_with_dates} ${scopeText} · ${focusText}`;
     timelineClearButton.hidden = !timelineFocus;
 
     const rect = timelineCanvas.getBoundingClientRect();
@@ -668,7 +650,12 @@ export async function createApp() {
       ctx.fillRect(startX, chartTop, Math.max(2, endX - startX), chartHeight);
       ctx.strokeStyle = palette.focusStroke;
       ctx.lineWidth = 1.5;
-      ctx.strokeRect(startX + 0.75, chartTop + 0.75, Math.max(0.5, endX - startX - 1.5), chartHeight - 1.5);
+      ctx.strokeRect(
+        startX + 0.75,
+        chartTop + 0.75,
+        Math.max(0.5, endX - startX - 1.5),
+        chartHeight - 1.5,
+      );
     }
 
     if (summary.selected_range) {
@@ -838,8 +825,7 @@ export async function createApp() {
       engine = wasm.GeneaQuiltEngine.with_ranker(textarea.value, activeRanker);
       scene = JSON.parse(engine.scene_json());
       layersPill.textContent = `${scene.summary.layers} generations`;
-      countsPill.textContent =
-        `${scene.vertices.length} items · ${scene.edges.length} links`;
+      countsPill.textContent = `${scene.vertices.length} items · ${scene.edges.length} links`;
       isBuildingScene = true;
       try {
         renderer.setScene(scene);
@@ -1086,11 +1072,7 @@ export async function createApp() {
     timelineCanvas.releasePointerCapture(event.pointerId);
     const year = timelineYearAtOffset(event.offsetX);
     const endYear = year ?? timelineBrush.anchorYear;
-    applyTimelineFocus(
-      timelineBrush.anchorYear,
-      endYear,
-      timelineActionSelect.value === "fit",
-    );
+    applyTimelineFocus(timelineBrush.anchorYear, endYear, timelineActionSelect.value === "fit");
     timelineBrush = null;
   });
   timelineCanvas.addEventListener("pointercancel", () => {
@@ -1111,15 +1093,22 @@ function iconSvg(name) {
   const paths = {
     sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
     moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
-    upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/>',
-    "folder-open": '<path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6A2 2 0 0 1 18.46 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2A2 2 0 0 0 12.09 6H18a2 2 0 0 1 2 2v2"/>',
-    sparkles: '<path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/>',
-    maximize: '<path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>',
-    "zoom-in": '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6"/><path d="M8 11h6"/>',
+    upload:
+      '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/>',
+    "folder-open":
+      '<path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6A2 2 0 0 1 18.46 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2A2 2 0 0 0 12.09 6H18a2 2 0 0 1 2 2v2"/>',
+    sparkles:
+      '<path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/>',
+    maximize:
+      '<path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/>',
+    "zoom-in":
+      '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M11 8v6"/><path d="M8 11h6"/>',
     "zoom-out": '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="M8 11h6"/>',
     text: '<path d="M15 18H3"/><path d="M17 6H3"/><path d="M21 12H3"/>',
-    download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/>',
-    printer: '<path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3h12v6"/><rect x="6" y="14" width="12" height="8" rx="1"/>',
+    download:
+      '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/>',
+    printer:
+      '<path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3h12v6"/><rect x="6" y="14" width="12" height="8" rx="1"/>',
     pin: '<path d="M12 17v5"/><path d="M9 10.76 5.24 7 7 5.24 10.76 9"/><path d="M14 3l7 7-5 5-7-7z"/>',
     x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
   };
@@ -1127,10 +1116,7 @@ function iconSvg(name) {
 }
 
 function escapeHtml(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
+  return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 }
 
 function sliderValueToZoomSpeed(value) {
@@ -1163,11 +1149,13 @@ function formatAngleLabel(value) {
 }
 
 function sanitizeFileName(value) {
-  return String(value)
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "") || "geneaquilt";
+  return (
+    String(value)
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "geneaquilt"
+  );
 }
 
 function clamp01(value) {

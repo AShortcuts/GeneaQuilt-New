@@ -42,7 +42,9 @@ export function describeFocusModel(model) {
     parts.push(`${pinnedCount} pinned`);
   }
   if (model.searchIds.length) {
-    parts.push(`${model.searchIds.length} search ${model.searchIds.length === 1 ? "match" : "matches"}`);
+    parts.push(
+      `${model.searchIds.length} search ${model.searchIds.length === 1 ? "match" : "matches"}`,
+    );
   }
   if (model.timelineRange) {
     parts.push(`${model.timelineRange.startYear}-${model.timelineRange.endYear}`);

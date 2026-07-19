@@ -12,7 +12,11 @@ pub struct LayoutState {
 }
 
 pub fn assign_layers(graph: &GeneaGraph) -> LayoutState {
-    let mut sources = graph.edges().iter().map(|edge| edge.from).collect::<Vec<_>>();
+    let mut sources = graph
+        .edges()
+        .iter()
+        .map(|edge| edge.from)
+        .collect::<Vec<_>>();
     let mut targets = graph.edges().iter().map(|edge| edge.to).collect::<Vec<_>>();
 
     for edge_index in cycle_edges(graph) {
@@ -25,7 +29,15 @@ pub fn assign_layers(graph: &GeneaGraph) -> LayoutState {
     let mut layers = vec![-1isize; graph.vertex_count()];
 
     for component in &components {
-        assign_component_layers(graph, component, &sources, &targets, &out_edges, &in_edges, &mut layers);
+        assign_component_layers(
+            graph,
+            component,
+            &sources,
+            &targets,
+            &out_edges,
+            &in_edges,
+            &mut layers,
+        );
     }
 
     fix_component_parity(graph, &components, &mut layers);
@@ -69,7 +81,10 @@ fn align_orphan_spouses(graph: &GeneaGraph, layers: &mut [isize]) {
                 continue;
             };
 
-            for spouse_ref in [family.husb.as_deref(), family.wife.as_deref()].into_iter().flatten() {
+            for spouse_ref in [family.husb.as_deref(), family.wife.as_deref()]
+                .into_iter()
+                .flatten()
+            {
                 let Some(spouse_id) = graph.vertex_id_by_external_id(spouse_ref) else {
                     continue;
                 };
@@ -152,10 +167,16 @@ fn assign_component_layers(
     in_edges: &[Vec<usize>],
     layers: &mut [isize],
 ) {
-    init_rank(graph, component, sources, targets, out_edges, in_edges, layers);
+    init_rank(
+        graph, component, sources, targets, out_edges, in_edges, layers,
+    );
     feasible_tree(component, sources, targets, out_edges, in_edges, layers);
 
-    let mut min_layer = component.iter().map(|vertex| layers[vertex.0]).min().unwrap_or(0);
+    let mut min_layer = component
+        .iter()
+        .map(|vertex| layers[vertex.0])
+        .min()
+        .unwrap_or(0);
     if min_layer % 2 != 0 {
         min_layer -= 1;
     }
@@ -176,7 +197,10 @@ fn init_rank(
     in_edges: &[Vec<usize>],
     layers: &mut [isize],
 ) {
-    let component_set = component.iter().map(|vertex| vertex.0).collect::<HashSet<_>>();
+    let component_set = component
+        .iter()
+        .map(|vertex| vertex.0)
+        .collect::<HashSet<_>>();
     let mut queue = VecDeque::<VertexId>::new();
     let mut processed = HashSet::<usize>::new();
 
@@ -233,10 +257,21 @@ fn feasible_tree(
         return;
     }
 
-    let component_set = component.iter().map(|vertex| vertex.0).collect::<HashSet<_>>();
+    let component_set = component
+        .iter()
+        .map(|vertex| vertex.0)
+        .collect::<HashSet<_>>();
 
     loop {
-        let (tree_nodes, tree_edges) = tight_tree(component, &component_set, sources, targets, out_edges, in_edges, layers);
+        let (tree_nodes, tree_edges) = tight_tree(
+            component,
+            &component_set,
+            sources,
+            targets,
+            out_edges,
+            in_edges,
+            layers,
+        );
         if tree_nodes.len() >= component.len() {
             break;
         }
@@ -267,7 +302,9 @@ fn feasible_tree(
 
         let mut delta = slack(edge_index, layers, sources, targets);
         if delta != 0 {
-            if incident_vertex(edge_index, &tree_nodes, sources, targets) == Some(sources[edge_index]) {
+            if incident_vertex(edge_index, &tree_nodes, sources, targets)
+                == Some(sources[edge_index])
+            {
                 delta = -delta;
             }
             for vertex in &tree_nodes {
@@ -290,20 +327,18 @@ fn tight_tree(
 ) -> (HashSet<VertexId>, HashSet<usize>) {
     let mut tree_nodes = HashSet::<VertexId>::new();
     let mut tree_edges = HashSet::<usize>::new();
+    let context = TightTreeContext {
+        node_target: component.len(),
+        component_set,
+        sources,
+        targets,
+        out_edges,
+        in_edges,
+        layers,
+    };
 
     for vertex in component {
-        tree_search(
-            *vertex,
-            component.len(),
-            component_set,
-            sources,
-            targets,
-            out_edges,
-            in_edges,
-            layers,
-            &mut tree_nodes,
-            &mut tree_edges,
-        );
+        tree_search(&context, *vertex, &mut tree_nodes, &mut tree_edges);
         if !tree_edges.is_empty() {
             break;
         }
@@ -312,66 +347,74 @@ fn tight_tree(
     (tree_nodes, tree_edges)
 }
 
-fn tree_search(
-    vertex: VertexId,
+struct TightTreeContext<'a> {
     node_target: usize,
-    component_set: &HashSet<usize>,
-    sources: &[VertexId],
-    targets: &[VertexId],
-    out_edges: &[Vec<usize>],
-    in_edges: &[Vec<usize>],
-    layers: &[isize],
+    component_set: &'a HashSet<usize>,
+    sources: &'a [VertexId],
+    targets: &'a [VertexId],
+    out_edges: &'a [Vec<usize>],
+    in_edges: &'a [Vec<usize>],
+    layers: &'a [isize],
+}
+
+fn tree_search(
+    context: &TightTreeContext<'_>,
+    vertex: VertexId,
     tree_nodes: &mut HashSet<VertexId>,
     tree_edges: &mut HashSet<usize>,
 ) -> bool {
     tree_nodes.insert(vertex);
 
-    for edge_index in &out_edges[vertex.0] {
-        let head = targets[*edge_index];
-        if !component_set.contains(&head.0) {
+    for edge_index in &context.out_edges[vertex.0] {
+        let head = context.targets[*edge_index];
+        if !context.component_set.contains(&head.0) {
             continue;
         }
-        if !tree_nodes.contains(&head) && slack(*edge_index, layers, sources, targets) == 0 {
-            add_tree_edge(*edge_index, sources, targets, tree_nodes, tree_edges);
-            if tree_edges.len() == node_target - 1
-                || tree_search(
-                    head,
-                    node_target,
-                    component_set,
-                    sources,
-                    targets,
-                    out_edges,
-                    in_edges,
-                    layers,
-                    tree_nodes,
-                    tree_edges,
-                )
+        if !tree_nodes.contains(&head)
+            && slack(
+                *edge_index,
+                context.layers,
+                context.sources,
+                context.targets,
+            ) == 0
+        {
+            add_tree_edge(
+                *edge_index,
+                context.sources,
+                context.targets,
+                tree_nodes,
+                tree_edges,
+            );
+            if tree_edges.len() == context.node_target - 1
+                || tree_search(context, head, tree_nodes, tree_edges)
             {
                 return true;
             }
         }
     }
 
-    for edge_index in &in_edges[vertex.0] {
-        let tail = sources[*edge_index];
-        if !component_set.contains(&tail.0) {
+    for edge_index in &context.in_edges[vertex.0] {
+        let tail = context.sources[*edge_index];
+        if !context.component_set.contains(&tail.0) {
             continue;
         }
-        if !tree_nodes.contains(&tail) && slack(*edge_index, layers, sources, targets) == 0 {
-            add_tree_edge(*edge_index, sources, targets, tree_nodes, tree_edges);
-            if tree_edges.len() == node_target - 1
-                || tree_search(
-                    tail,
-                    node_target,
-                    component_set,
-                    sources,
-                    targets,
-                    out_edges,
-                    in_edges,
-                    layers,
-                    tree_nodes,
-                    tree_edges,
-                )
+        if !tree_nodes.contains(&tail)
+            && slack(
+                *edge_index,
+                context.layers,
+                context.sources,
+                context.targets,
+            ) == 0
+        {
+            add_tree_edge(
+                *edge_index,
+                context.sources,
+                context.targets,
+                tree_nodes,
+                tree_edges,
+            );
+            if tree_edges.len() == context.node_target - 1
+                || tree_search(context, tail, tree_nodes, tree_edges)
             {
                 return true;
             }
@@ -463,7 +506,11 @@ fn fix_component_parity(graph: &GeneaGraph, components: &[Vec<VertexId>], layers
     }
 }
 
-fn align_components_by_dates(graph: &GeneaGraph, components: &[Vec<VertexId>], layers: &mut [isize]) {
+fn align_components_by_dates(
+    graph: &GeneaGraph,
+    components: &[Vec<VertexId>],
+    layers: &mut [isize],
+) {
     if components.len() < 2 {
         return;
     }
@@ -715,10 +762,18 @@ mod tests {
 
         let graph = parse_gedcom(gedcom).expect("gedcom should parse");
         let state = assign_layers(&graph);
-        let first_family = graph.vertex_id_by_external_id("@F1@").expect("family should exist");
-        let second_family = graph.vertex_id_by_external_id("@F2@").expect("family should exist");
-        let daughter = graph.vertex_id_by_external_id("@I3@").expect("person should exist");
-        let child = graph.vertex_id_by_external_id("@I4@").expect("person should exist");
+        let first_family = graph
+            .vertex_id_by_external_id("@F1@")
+            .expect("family should exist");
+        let second_family = graph
+            .vertex_id_by_external_id("@F2@")
+            .expect("family should exist");
+        let daughter = graph
+            .vertex_id_by_external_id("@I3@")
+            .expect("person should exist");
+        let child = graph
+            .vertex_id_by_external_id("@I4@")
+            .expect("person should exist");
 
         assert_eq!(state.layers[daughter.0], state.layers[first_family.0] + 1);
         assert_eq!(state.layers[child.0], state.layers[second_family.0] + 1);
@@ -757,8 +812,12 @@ mod tests {
 
         let graph = parse_gedcom(gedcom).expect("gedcom should parse");
         let state = assign_layers(&graph);
-        let early_parent = graph.vertex_id_by_external_id("@I1@").expect("person should exist");
-        let late_parent = graph.vertex_id_by_external_id("@I3@").expect("person should exist");
+        let early_parent = graph
+            .vertex_id_by_external_id("@I1@")
+            .expect("person should exist");
+        let late_parent = graph
+            .vertex_id_by_external_id("@I3@")
+            .expect("person should exist");
 
         assert!(state.layers[late_parent.0] > state.layers[early_parent.0]);
     }

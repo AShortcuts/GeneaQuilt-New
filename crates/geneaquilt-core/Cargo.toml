@@ -1,9 +1,12 @@
 [package]
 name = "geneaquilt-core"
 version = "0.1.0"
+description = "GEDCOM parsing and genealogy graph domain model for GeneaQuilt"
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
+repository.workspace = true
 
 [lib]
 path = "src/lib.rs"
