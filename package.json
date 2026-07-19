@@ -25,10 +25,10 @@
     "lint:js": "eslint web scripts",
     "lint:rust": "cargo clippy --workspace --all-targets -- -D warnings",
     "format": "npm run format:js && npm run format:rust",
-    "format:js": "prettier --write web scripts package.json package-lock.json README.md CONTRIBUTING.md .github",
+    "format:js": "prettier --write web scripts package.json package-lock.json README.md CONTRIBUTING.md",
     "format:rust": "cargo fmt --all",
     "format:check": "npm run format:check:js && npm run format:check:rust",
-    "format:check:js": "prettier --check web scripts package.json package-lock.json README.md CONTRIBUTING.md .github",
+    "format:check:js": "prettier --check web scripts package.json package-lock.json README.md CONTRIBUTING.md",
     "format:check:rust": "cargo fmt --all -- --check",
     "check": "npm run format:check && npm run lint && npm test && npm run build:cloudflare"
   },

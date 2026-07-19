@@ -875,7 +875,7 @@ fn mismatch_family_cluster(
                 for person_id in graph
                     .ascendants(vertex)
                     .into_iter()
-                    .chain(graph.descendants(vertex).into_iter())
+                    .chain(graph.descendants(vertex))
                 {
                     queue.push_back((person_id, family_hops));
                 }
@@ -887,7 +887,7 @@ fn mismatch_family_cluster(
                 for next_family in graph
                     .ascendants(vertex)
                     .into_iter()
-                    .chain(graph.descendants(vertex).into_iter())
+                    .chain(graph.descendants(vertex))
                 {
                     queue.push_back((next_family, family_hops + 1));
                 }

@@ -2,6 +2,7 @@ import { loadEngineModule } from "./engine.js";
 import { appSurfaceState, matchesPopupState, shouldFitAfterSourceLoad } from "./appState.js";
 import { buildFocusModel, describeFocusModel } from "./focusModel.js";
 import { QuiltRenderer } from "./quiltRenderer.js";
+import { applyDocumentTheme, getInitialTheme } from "./theme.js";
 
 const sampleGedcom = `0 @I1@ INDI
 1 NAME John /Doe/
@@ -48,15 +49,12 @@ const sampleGedcom = `0 @I1@ INDI
 2 DATE 1954
 `;
 
-const THEME_STORAGE_KEY = "geneaquilt-theme";
-
 export async function createApp() {
   const wasm = await loadEngineModule();
   const page = document.createElement("main");
   page.className = "page";
   let theme = getInitialTheme();
-  document.documentElement.dataset.theme = theme;
-  document.documentElement.style.colorScheme = theme;
+  applyDocumentTheme(theme);
 
   page.innerHTML = `
     <header class="hero">
@@ -70,11 +68,12 @@ export async function createApp() {
           <p class="lede">Explore the people, generations, and connections woven through your family tree.</p>
         </div>
       </div>
-      <div class="appearance-controls" aria-label="Appearance">
+      <nav class="appearance-controls" aria-label="Site and appearance">
+        <a class="button header-link" href="/about.html">About</a>
         <button class="button icon-button theme-toggle-button" type="button" aria-pressed="${theme === "dark" ? "true" : "false"}" aria-label="${theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}">
           ${iconSvg(theme === "dark" ? "sun" : "moon")}
         </button>
-      </div>
+      </nav>
     </header>
     <section class="studio">
       <section class="source-panel panel">
@@ -373,10 +372,7 @@ export async function createApp() {
   expandButton.innerHTML = `${iconSvg("text")}Compact names`;
 
   function applyTheme(nextTheme) {
-    theme = nextTheme === "dark" ? "dark" : "light";
-    document.documentElement.dataset.theme = theme;
-    document.documentElement.style.colorScheme = theme;
-    localStorage.setItem(THEME_STORAGE_KEY, theme);
+    theme = applyDocumentTheme(nextTheme);
     themeToggleButton.innerHTML = iconSvg(theme === "dark" ? "sun" : "moon");
     themeToggleButton.setAttribute(
       "aria-label",
@@ -1272,14 +1268,6 @@ function clamp01(value) {
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
-}
-
-function getInitialTheme() {
-  const stored = localStorage.getItem(THEME_STORAGE_KEY);
-  if (stored === "light" || stored === "dark") {
-    return stored;
-  }
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
 function timelinePalette(theme) {

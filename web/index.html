@@ -5,9 +5,61 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="Explore GEDCOM family trees as a calm, interactive generational quilt."
+      content="Explore even complex GEDCOM family trees as a calm, interactive quilt—privately in your browser."
+    />
+    <link rel="canonical" href="https://geneaquilt-new.pages.dev/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="GeneaQuilt" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:title" content="GeneaQuilt — See your whole family story" />
+    <meta
+      property="og:description"
+      content="Explore even complex GEDCOM family trees as a calm, interactive quilt—privately in your browser."
+    />
+    <meta property="og:url" content="https://geneaquilt-new.pages.dev/" />
+    <meta property="og:image" content="https://geneaquilt-new.pages.dev/geneaquilt-share.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="GeneaQuilt sharing card with a warm parchment background and an organized family-network quilt."
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="GeneaQuilt — See your whole family story" />
+    <meta
+      name="twitter:description"
+      content="Explore even complex GEDCOM family trees as a calm, interactive quilt—privately in your browser."
+    />
+    <meta name="twitter:image" content="https://geneaquilt-new.pages.dev/geneaquilt-share.png" />
+    <meta
+      name="twitter:image:alt"
+      content="GeneaQuilt sharing card with a warm parchment background and an organized family-network quilt."
     />
     <meta name="theme-color" content="#f3eee5" />
+    <style>
+      html {
+        background: #f3eee5;
+      }
+
+      html[data-theme="dark"] {
+        background: #171a17;
+      }
+    </style>
+    <script>
+      const storedTheme = localStorage.getItem("geneaquilt-theme");
+      const initialTheme =
+        storedTheme === "light" || storedTheme === "dark"
+          ? storedTheme
+          : window.matchMedia("(prefers-color-scheme: dark)").matches
+            ? "dark"
+            : "light";
+      document.documentElement.dataset.theme = initialTheme;
+      document.documentElement.style.colorScheme = initialTheme;
+      document.querySelector('meta[name="theme-color"]').content =
+        initialTheme === "dark" ? "#171a17" : "#f3eee5";
+    </script>
+    <link rel="stylesheet" href="/src/styles.css" />
     <link
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%234b6958'/%3E%3Cpath d='M14 14h16v16H14zM34 14h16v16H34zM14 34h16v16H14zM34 34h16v16H34z' fill='%23f6efe2'/%3E%3Cpath d='M14 14h16v16H14zM34 34h16v16H34z' fill='%23c87552'/%3E%3C/svg%3E"

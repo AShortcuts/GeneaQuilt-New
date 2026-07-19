@@ -1,0 +1,1217 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Learn how GeneaQuilt makes complex family networks understandable, what GEDCOM means, and which genealogy tools best fit your research."
+    />
+    <link rel="canonical" href="https://geneaquilt-new.pages.dev/about.html" />
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="GeneaQuilt" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:title" content="About GeneaQuilt — A clearer view of family history" />
+    <meta
+      property="og:description"
+      content="Understand GeneaQuilt, GEDCOM files, its private browser tools, and the honest tradeoffs between popular genealogy apps."
+    />
+    <meta property="og:url" content="https://geneaquilt-new.pages.dev/about.html" />
+    <meta property="og:image" content="https://geneaquilt-new.pages.dev/geneaquilt-share.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="GeneaQuilt sharing card with a warm parchment background and an organized family-network quilt."
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="About GeneaQuilt — A clearer view of family history" />
+    <meta
+      name="twitter:description"
+      content="Understand GeneaQuilt, GEDCOM files, its private browser tools, and the honest tradeoffs between popular genealogy apps."
+    />
+    <meta name="twitter:image" content="https://geneaquilt-new.pages.dev/geneaquilt-share.png" />
+    <meta
+      name="twitter:image:alt"
+      content="GeneaQuilt sharing card with a warm parchment background and an organized family-network quilt."
+    />
+    <meta name="theme-color" content="#f3eee5" />
+    <style>
+      html {
+        background: #f3eee5;
+      }
+
+      html[data-theme="dark"] {
+        background: #171a17;
+      }
+    </style>
+    <script>
+      const storedTheme = localStorage.getItem("geneaquilt-theme");
+      const initialTheme =
+        storedTheme === "light" || storedTheme === "dark"
+          ? storedTheme
+          : window.matchMedia("(prefers-color-scheme: dark)").matches
+            ? "dark"
+            : "light";
+      document.documentElement.dataset.theme = initialTheme;
+      document.documentElement.style.colorScheme = initialTheme;
+      document.querySelector('meta[name="theme-color"]').content =
+        initialTheme === "dark" ? "#171a17" : "#f3eee5";
+    </script>
+    <link rel="stylesheet" href="/src/styles.css" />
+    <link rel="stylesheet" href="/src/about.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%234b6958'/%3E%3Cpath d='M14 14h16v16H14zM34 14h16v16H34zM14 34h16v16H14zM34 34h16v16H34z' fill='%23f6efe2'/%3E%3Cpath d='M14 14h16v16H14zM34 34h16v16H34z' fill='%23c87552'/%3E%3C/svg%3E"
+    />
+    <title>About GeneaQuilt — A clearer view of family history</title>
+  </head>
+  <body class="about-body">
+    <a class="skip-link" href="#about-content">Skip to the guide</a>
+    <div class="reading-progress" aria-hidden="true"><span></span></div>
+
+    <div class="about-page">
+      <header class="hero about-masthead">
+        <a class="brand-lockup brand-link" href="/" aria-label="GeneaQuilt home">
+          <span class="brand-mark" aria-hidden="true">
+            <span></span><span></span><span></span><span></span>
+          </span>
+          <span>
+            <span class="eyebrow">Family tree workspace</span>
+            <span class="brand-title">GeneaQuilt</span>
+            <span class="lede">A calmer way to see a complicated family.</span>
+          </span>
+        </a>
+        <nav class="appearance-controls" aria-label="Site and appearance">
+          <a class="button header-link" href="/">Open the quilt</a>
+          <button
+            class="button icon-button theme-toggle-button"
+            type="button"
+            aria-pressed="false"
+            aria-label="Switch to dark mode"
+          ></button>
+        </nav>
+      </header>
+
+      <main id="about-content">
+        <section id="overview" class="about-intro about-anchor" aria-labelledby="about-title">
+          <div class="about-intro-copy">
+            <p class="section-kicker">About the project</p>
+            <h1 id="about-title">See the shape of your family story.</h1>
+            <p class="intro-lede">
+              GeneaQuilt turns a GEDCOM family tree into a compact, interactive quilt. It is made
+              for the moment when a normal pedigree chart becomes too wide, too tangled, or too hard
+              to hold in your head.
+            </p>
+            <div class="intro-actions">
+              <a class="button button-primary" href="/">Explore a tree</a>
+              <a class="text-link" href="#gedcom">What is a GEDCOM?</a>
+            </div>
+            <ul class="trust-list" aria-label="Key facts">
+              <li><span aria-hidden="true">✓</span> No account required</li>
+              <li><span aria-hidden="true">✓</span> Your file stays in your browser</li>
+              <li><span aria-hidden="true">✓</span> Free and open source</li>
+            </ul>
+          </div>
+
+          <figure class="quilt-story" aria-labelledby="quilt-story-caption">
+            <svg viewBox="0 0 620 420" role="img" aria-label="A simplified family quilt diagram">
+              <g class="story-grid">
+                <path d="M56 62H560M56 132H560M56 202H560M56 272H560M56 342H560" />
+                <path d="M130 42V366M240 42V366M350 42V366M460 42V366" />
+              </g>
+              <g class="story-thread">
+                <path d="M91 62C165 62 178 132 240 132S317 202 350 202S415 272 460 272" />
+                <path d="M91 202C169 202 173 132 240 132S318 62 350 62" />
+                <path d="M240 342C302 342 322 272 350 272S414 202 460 202S513 132 548 132" />
+              </g>
+              <g class="story-family">
+                <rect x="228" y="120" width="24" height="24" rx="4" />
+                <rect x="338" y="190" width="24" height="24" rx="4" />
+                <rect x="448" y="260" width="24" height="24" rx="4" />
+              </g>
+              <g class="story-person">
+                <circle cx="91" cy="62" r="8" />
+                <circle cx="91" cy="202" r="8" />
+                <circle cx="240" cy="342" r="8" />
+                <circle cx="350" cy="62" r="8" />
+                <circle cx="350" cy="272" r="8" />
+                <circle cx="460" cy="202" r="8" />
+                <circle cx="548" cy="132" r="8" />
+              </g>
+              <g class="story-labels">
+                <text x="74" y="48">people</text>
+                <text x="216" y="108">family</text>
+                <text x="323" y="248">generations</text>
+                <text x="475" y="304">connections</text>
+              </g>
+            </svg>
+            <figcaption id="quilt-story-caption">
+              People sit on generational bands; family units stitch the connections together.
+            </figcaption>
+          </figure>
+        </section>
+
+        <details class="mobile-toc">
+          <summary>
+            <span>On this page</span>
+            <strong class="mobile-toc-current">Overview</strong>
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" /></svg>
+          </summary>
+          <nav aria-label="About page sections">
+            <a href="#overview">Overview</a>
+            <a href="#purpose">Why it helps</a>
+            <a href="#visualizations">Other visualizations</a>
+            <a href="#gedcom">GEDCOM basics</a>
+            <a href="#tools">Tool guide</a>
+            <a href="#choosing">Choosing a home</a>
+            <a href="#comparison">Compare options</a>
+            <a href="#workflow">A good workflow</a>
+            <a href="#privacy">Privacy and sharing</a>
+            <a href="#credits">Credits and sources</a>
+          </nav>
+        </details>
+
+        <div class="about-layout">
+          <aside class="desktop-toc" aria-label="About page sections">
+            <div class="toc-sticky">
+              <p>On this page</p>
+              <nav>
+                <a href="#overview" data-section="overview">Overview</a>
+                <a href="#purpose" data-section="purpose">Why it helps</a>
+                <a href="#visualizations" data-section="visualizations">Other visualizations</a>
+                <a href="#gedcom" data-section="gedcom">GEDCOM basics</a>
+                <a href="#tools" data-section="tools">Tool guide</a>
+                <a href="#choosing" data-section="choosing">Choosing a home</a>
+                <a href="#comparison" data-section="comparison">Compare options</a>
+                <a href="#workflow" data-section="workflow">A good workflow</a>
+                <a href="#privacy" data-section="privacy">Privacy and sharing</a>
+                <a href="#credits" data-section="credits">Credits and sources</a>
+              </nav>
+              <p class="toc-note">
+                New here? Start with Why it helps, GEDCOM basics, and the Tool guide.
+              </p>
+            </div>
+          </aside>
+
+          <div class="about-sections">
+            <section
+              id="purpose"
+              class="guide-section about-anchor"
+              aria-labelledby="purpose-title"
+            >
+              <div class="section-heading">
+                <p class="section-kicker">Purpose and strengths</p>
+                <h2 id="purpose-title">A map for the whole family network</h2>
+                <p>
+                  A standard pedigree is excellent for following one ancestral line. GeneaQuilt is
+                  strongest when you want to understand an entire GEDCOM—many lines, marriages,
+                  siblings, disconnected groups, and generations—without repeatedly drawing the same
+                  person.
+                </p>
+              </div>
+
+              <div class="purpose-note">
+                <span class="note-mark" aria-hidden="true">i</span>
+                <p>
+                  <strong>Think of GeneaQuilt as a map, not the archive.</strong> Keep your master
+                  research in a family-tree program; use this site to explore its structure.
+                </p>
+              </div>
+
+              <div class="strength-list">
+                <article>
+                  <span>01</span>
+                  <div>
+                    <h3>One coherent view at serious scale</h3>
+                    <p>
+                      The original Java system loaded and visualized up to 10,000 person-and-family
+                      nodes at interactive rates, including genealogies with thousands of people and
+                      roughly 80 generations.
+                    </p>
+                  </div>
+                </article>
+                <article>
+                  <span>02</span>
+                  <div>
+                    <h3>Every person can remain in the map</h3>
+                    <p>
+                      The layout is not rooted on one chosen person. It can place every loaded
+                      person and family, including disconnected components that are unrelated to the
+                      main group.
+                    </p>
+                  </div>
+                </article>
+                <article>
+                  <span>03</span>
+                  <div>
+                    <h3>Shared ancestors are not drawn again and again</h3>
+                    <p>
+                      Each person has one row and each nuclear family one column. Pedigree collapse,
+                      intermarriage, and relinking paths converge on the same record instead of
+                      recursively cloning boxes.
+                    </p>
+                  </div>
+                </article>
+                <article>
+                  <span>04</span>
+                  <div>
+                    <h3>Fast overview; detail when requested</h3>
+                    <p>
+                      Fit, overview, search, selection, relationship tracing, and focus controls
+                      reveal context without forcing every label and control onto the screen.
+                    </p>
+                  </div>
+                </article>
+              </div>
+
+              <p class="research-caveat">
+                <strong>An honest qualification:</strong> the 10,000-node result belongs to the
+                original 2010 Java research implementation, not a published benchmark for this
+                browser port. Screen space also becomes the limiting factor when a single generation
+                contains hundreds of names, even if the layout itself remains responsive.
+              </p>
+            </section>
+
+            <section
+              id="visualizations"
+              class="guide-section about-anchor"
+              aria-labelledby="visualizations-title"
+            >
+              <div class="section-heading">
+                <p class="section-kicker">Visualization landscape</p>
+                <h2 id="visualizations-title">Can anything else show the whole tree?</h2>
+                <p>
+                  Several methods handle scale or repeated ancestry well, but they answer different
+                  questions. The important test is whether a view keeps the full network, makes
+                  pedigree collapse understandable, and still lets you recognize individual people.
+                </p>
+              </div>
+
+              <div class="visualization-verdict">
+                <p>
+                  <strong
+                    >“Without recursion” means without redrawing the same ancestor for every
+                    path.</strong
+                  >
+                  Genealogists usually call the underlying pattern <em>pedigree collapse</em> or a
+                  <em>relinking marriage</em>. A genealogy is therefore a graph, not always a clean
+                  tree. GeneaQuilt gives each person one row, so converging paths return to that one
+                  person instead of producing duplicate boxes.
+                </p>
+              </div>
+
+              <div class="visualization-list" aria-label="Family tree visualization comparison">
+                <article class="featured-method">
+                  <div class="visualization-method">
+                    <span>Closest overall fit</span>
+                    <h3>GeneaQuilts</h3>
+                  </div>
+                  <div class="visualization-copy">
+                    <p>
+                      <strong>What it captures</strong> The whole loaded dataset, disconnected
+                      components, and shared ancestry in one organized matrix; each person and
+                      nuclear family appears once.
+                    </p>
+                    <p>
+                      <strong>What it gives up</strong> Names become dense at extreme scale. Zoom,
+                      search, filtering, and detail-on-demand are still needed.
+                    </p>
+                  </div>
+                </article>
+
+                <article>
+                  <div class="visualization-method">
+                    <span>Structural analysis</span>
+                    <h3>P-graphs, Pajek, and Puck</h3>
+                  </div>
+                  <div class="visualization-copy">
+                    <p>
+                      <strong>What they capture</strong> Large kinship networks, marriage rings, and
+                      relinking patterns exceptionally well.
+                    </p>
+                    <p>
+                      <strong>What they give up</strong> They are expert analytical tools; names,
+                      chronology, and the story of a particular person can get lost.
+                    </p>
+                  </div>
+                </article>
+
+                <article>
+                  <div class="visualization-method">
+                    <span>Very large overview</span>
+                    <h3>Clustered and fractal layouts</h3>
+                  </div>
+                  <div class="visualization-copy">
+                    <p>
+                      <strong>What they capture</strong> Recent TU Wien research handled multiple
+                      roots and cycles and tested a Habsburg dataset of more than 30,000 people.
+                    </p>
+                    <p>
+                      <strong>What they give up</strong> Clustering or subdividing descendant
+                      regions gains scale by reducing how much person-level detail remains readable
+                      at once.
+                    </p>
+                  </div>
+                </article>
+
+                <article>
+                  <div class="visualization-method">
+                    <span>Focused browsing</span>
+                    <h3>Dual Trees and H-tree pedigrees</h3>
+                  </div>
+                  <div class="visualization-copy">
+                    <p>
+                      <strong>What they capture</strong> Compact ancestor or descendant exploration;
+                      H-tree views can mark duplicate ancestors and loops.
+                    </p>
+                    <p>
+                      <strong>What they give up</strong> They show a focus, a subset, or one
+                      person’s ancestry—not every connected and disconnected person at once.
+                    </p>
+                  </div>
+                </article>
+
+                <article>
+                  <div class="visualization-method">
+                    <span>Familiar small trees</span>
+                    <h3>Pedigree, fan, and hourglass charts</h3>
+                  </div>
+                  <div class="visualization-copy">
+                    <p>
+                      <strong>What they capture</strong> A clear, familiar story around one person
+                      or a modest number of generations.
+                    </p>
+                    <p>
+                      <strong>What they give up</strong> Shared ancestors are commonly duplicated,
+                      while remarriages, crossings, and width grow quickly.
+                    </p>
+                  </div>
+                </article>
+              </div>
+
+              <p class="landscape-conclusion">
+                <strong>My conclusion:</strong> GeneaQuilts remains unusual in balancing a
+                whole-dataset overview, one representation per person, disconnected groups, and
+                readable pedigree-collapse patterns. I did not find another established method that
+                does all of those while keeping tens of thousands of named people legible in one
+                static viewport. New clustered layouts push the scale farther, but trade away some
+                person-level clarity. This is an inference from the surveyed research, not proof
+                that no other method exists. The primary papers are linked in
+                <a href="#credits">Credits and sources</a>.
+              </p>
+            </section>
+
+            <section id="gedcom" class="guide-section about-anchor" aria-labelledby="gedcom-title">
+              <div class="section-heading">
+                <p class="section-kicker">GEDCOM basics</p>
+                <h2 id="gedcom-title">The travel format for family trees</h2>
+                <p>
+                  <span class="term-tip" tabindex="0" aria-describedby="gedcom-tip">GEDCOM</span>
+                  stands for <strong>GEnealogical Data COMmunication</strong>. It is a structured
+                  plain-text format used to move family-history data between different programs.
+                </p>
+                <span id="gedcom-tip" class="tooltip" role="tooltip">
+                  Usually pronounced “JED-com.” The standard is maintained by FamilySearch.
+                </span>
+              </div>
+
+              <div class="gedcom-layout">
+                <div class="gedcom-explainer">
+                  <h3>What it usually carries</h3>
+                  <ul class="plain-check-list">
+                    <li><span aria-hidden="true">✓</span> People, names, dates, and places</li>
+                    <li>
+                      <span aria-hidden="true">✓</span> Parent, spouse, and child relationships
+                    </li>
+                    <li>
+                      <span aria-hidden="true">✓</span> Events, notes, and many source references
+                    </li>
+                    <li>
+                      <span aria-hidden="true">✓</span> Stable IDs that connect records together
+                    </li>
+                  </ul>
+                  <p class="fine-print">
+                    A GEDCOM is an exchange copy, not always a perfect backup. Custom fields,
+                    formatting, media, and app-specific features can be changed or omitted during a
+                    transfer. Keep your program’s native backup too.
+                  </p>
+                </div>
+
+                <figure class="gedcom-sample">
+                  <figcaption>Small GEDCOM example</figcaption>
+                  <pre><code><span>0</span> HEAD
+<span>1</span> GEDC
+<span>2</span> VERS 5.5.1
+<span>0</span> @I1@ INDI
+<span>1</span> NAME Ada /Lovelace/
+<span>1</span> BIRT
+<span>2</span> DATE 10 DEC 1815
+<span>0</span> TRLR</code></pre>
+                </figure>
+              </div>
+
+              <div class="gedcom-steps" aria-label="How to use a GEDCOM with GeneaQuilt">
+                <div>
+                  <span>1</span>
+                  <p>Export a <code>.ged</code> file from your usual family-tree app.</p>
+                </div>
+                <div>
+                  <span>2</span>
+                  <p>Open that copy in GeneaQuilt. The original file is not changed.</p>
+                </div>
+                <div>
+                  <span>3</span>
+                  <p>Inspect the quilt, then return to your main app to correct the research.</p>
+                </div>
+              </div>
+
+              <p class="source-line">
+                Learn more from the
+                <a class="external" href="https://gedcom.io/" target="_blank" rel="noreferrer"
+                  >official GEDCOM project</a
+                >. GeneaQuilt currently reads GEDCOM text; it does not display photos or open a
+                GEDZIP media bundle.
+              </p>
+            </section>
+
+            <section id="tools" class="guide-section about-anchor" aria-labelledby="tools-title">
+              <div class="section-heading">
+                <p class="section-kicker">Tool guide</p>
+                <h2 id="tools-title">Start simple. Reach for more when needed.</h2>
+                <p>
+                  The main workspace keeps the everyday controls close and places specialized tools
+                  inside the Quilt tools and Timeline panels.
+                </p>
+              </div>
+
+              <div class="tool-bands">
+                <article>
+                  <div class="tool-band-title">
+                    <span>01</span>
+                    <h3>Open and build</h3>
+                  </div>
+                  <div class="tool-band-copy">
+                    <p><strong>Choose GEDCOM</strong> opens a file from your device.</p>
+                    <p>
+                      <strong>Explore the sample</strong> is the quickest way to learn the controls.
+                    </p>
+                    <p>
+                      <strong>Paste or edit GEDCOM</strong> reveals raw text and layout choices.
+                    </p>
+                  </div>
+                </article>
+                <article>
+                  <div class="tool-band-title">
+                    <span>02</span>
+                    <h3>Move around</h3>
+                  </div>
+                  <div class="tool-band-copy">
+                    <p><strong>Drag</strong> the quilt to pan; scroll or pinch to zoom.</p>
+                    <p><strong>Fit</strong> brings the full tree back into view.</p>
+                    <p>
+                      <strong>Overview</strong> shows where you are;
+                      <strong>Expand names</strong> changes label density.
+                    </p>
+                  </div>
+                </article>
+                <article>
+                  <div class="tool-band-title">
+                    <span>03</span>
+                    <h3>Find and focus</h3>
+                  </div>
+                  <div class="tool-band-copy">
+                    <p><strong>Search</strong> looks through names, dates, IDs, or file details.</p>
+                    <p>
+                      <strong>Select</strong> a person or family to reveal relationships and
+                      properties.
+                    </p>
+                    <p>
+                      <strong>Pin highlight</strong>, relationship direction, and focus depth help
+                      isolate a branch.
+                    </p>
+                  </div>
+                </article>
+                <article>
+                  <div class="tool-band-title">
+                    <span>04</span>
+                    <h3>Time, motion, and sharing</h3>
+                  </div>
+                  <div class="tool-band-copy">
+                    <p>
+                      <strong>Timeline</strong> highlights or spotlights a dragged range of years.
+                    </p>
+                    <p>
+                      <strong>Tilt</strong> rotates the quilt; zoom speed can favor precision or
+                      speed.
+                    </p>
+                    <p>
+                      <strong>Export file</strong> makes an interactive snapshot;
+                      <strong>Print / PDF</strong> makes a document view.
+                    </p>
+                  </div>
+                </article>
+              </div>
+
+              <details class="explain-details">
+                <summary>
+                  <span>What is Bring-and-Slide?</span>
+                  <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" /></svg>
+                </summary>
+                <div>
+                  <p>
+                    It is a navigation idea carried over from the original GeneaQuilt. Select a
+                    person, then drag left to bring parents and siblings into view or right to bring
+                    spouses and children into view. The quilt moves while the selected context stays
+                    understandable.
+                  </p>
+                </div>
+              </details>
+            </section>
+
+            <section
+              id="choosing"
+              class="guide-section about-anchor"
+              aria-labelledby="choosing-title"
+            >
+              <div class="section-heading">
+                <p class="section-kicker">Choosing a genealogy home</p>
+                <h2 id="choosing-title">Use the right tool for the job you care about</h2>
+                <p>
+                  No single product wins every category. The best choice depends on whether you
+                  value private local files, shared collaboration, historical records, polished
+                  charts, or a particular device.
+                </p>
+              </div>
+
+              <div class="quick-picks" aria-label="Quick recommendations">
+                <a href="#option-familysearch"
+                  ><span>Free records + collaboration</span><strong>FamilySearch</strong></a
+                >
+                <a href="#option-gramps"
+                  ><span>Free local ownership</span><strong>Gramps</strong></a
+                >
+                <a href="#option-macfamilytree"
+                  ><span>Best Apple-native experience</span><strong>MacFamilyTree</strong></a
+                >
+                <a href="#option-rootsmagic"
+                  ><span>Approachable desktop value</span><strong>RootsMagic</strong></a
+                >
+              </div>
+
+              <div class="choice-questions">
+                <article>
+                  <span aria-hidden="true">01</span>
+                  <h3>Who should be able to edit?</h3>
+                  <p>
+                    A private owner, invited relatives, or everyone collaborating on one shared
+                    tree?
+                  </p>
+                </article>
+                <article>
+                  <span aria-hidden="true">02</span>
+                  <h3>Where should the master copy live?</h3>
+                  <p>On your computer, in a company account, or in a public community tree?</p>
+                </article>
+                <article>
+                  <span aria-hidden="true">03</span>
+                  <h3>Are records part of the price?</h3>
+                  <p>
+                    A free tree can still place census images, hints, and newspapers behind a
+                    subscription.
+                  </p>
+                </article>
+              </div>
+            </section>
+
+            <section
+              id="comparison"
+              class="guide-section about-anchor comparison-section"
+              aria-labelledby="comparison-title"
+            >
+              <div class="section-heading">
+                <p class="section-kicker">Honest comparison</p>
+                <h2 id="comparison-title">Useful options, with the tradeoffs visible</h2>
+                <p>
+                  Prices are in U.S. dollars and were checked July 19, 2026. Promotions, taxes,
+                  regions, renewals, and app-store pricing can change, so follow the product link
+                  before buying.
+                </p>
+              </div>
+
+              <div class="comparison-legend" aria-label="Table legend">
+                <span><b aria-hidden="true">✅</b> Included</span>
+                <span><b aria-hidden="true">◐</b> Limited or guided</span>
+                <span><b aria-hidden="true">—</b> Not included / not its focus</span>
+              </div>
+
+              <p class="table-swipe-note">Swipe horizontally to see every column.</p>
+              <div
+                class="comparison-table-wrap"
+                tabindex="0"
+                aria-label="Scrollable genealogy product comparison"
+              >
+                <table class="comparison-table">
+                  <caption class="visually-hidden">
+                    Comparison of GeneaQuilt and recommended family-tree websites and apps
+                  </caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Option</th>
+                      <th scope="col">Best for</th>
+                      <th scope="col">Free version</th>
+                      <th scope="col">
+                        <span
+                          class="term-tip compact"
+                          tabindex="0"
+                          aria-describedby="table-gedcom-tip"
+                          >GEDCOM</span
+                        >
+                        <span id="table-gedcom-tip" class="tooltip" role="tooltip"
+                          >Can exchange at least basic tree data using GEDCOM.</span
+                        >
+                      </th>
+                      <th scope="col">Local / offline</th>
+                      <th scope="col">Price and honest catch</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr id="option-geneaquilt" class="current-option">
+                      <th scope="row"><a href="/">GeneaQuilt</a><small>Visual explorer</small></th>
+                      <td>Seeing a dense family network clearly</td>
+                      <td><span class="yes" aria-label="Yes">✅</span></td>
+                      <td><span class="yes" aria-label="Yes">✅</span> Import</td>
+                      <td><span class="yes" aria-label="Yes">✅</span> Processing</td>
+                      <td>
+                        <strong>$0.</strong> A viewer, not a tree editor, records database, or
+                        research service.
+                      </td>
+                    </tr>
+                    <tr id="option-familysearch">
+                      <th scope="row">
+                        <a
+                          class="external"
+                          href="https://www.familysearch.org/en/tree/"
+                          target="_blank"
+                          rel="noreferrer"
+                          >FamilySearch</a
+                        ><small>Web + mobile</small>
+                      </th>
+                      <td>Free records and collaborative research</td>
+                      <td><span class="yes" aria-label="Yes">✅</span></td>
+                      <td><span class="partial" aria-label="Limited or guided">◐</span> Guided</td>
+                      <td><span class="no" aria-label="No">—</span></td>
+                      <td>
+                        <strong>$0.</strong> The main Family Tree is shared and public; other
+                        contributors can edit deceased people.
+                      </td>
+                    </tr>
+                    <tr id="option-wikitree">
+                      <th scope="row">
+                        <a
+                          class="external"
+                          href="https://www.wikitree.com/"
+                          target="_blank"
+                          rel="noreferrer"
+                          >WikiTree</a
+                        ><small>Web</small>
+                      </th>
+                      <td>Source-minded “one world tree” collaboration</td>
+                      <td><span class="yes" aria-label="Yes">✅</span></td>
+                      <td>
+                        <span class="partial" aria-label="Limited or guided">◐</span> GEDCOMpare
+                      </td>
+                      <td><span class="no" aria-label="No">—</span></td>
+                      <td>
+                        <strong>$0.</strong> Collaborative and English-first; imports require
+                        duplicate review rather than a blind bulk merge.
+                      </td>
+                    </tr>
+                    <tr id="option-gramps">
+                      <th scope="row">
+                        <a
+                          class="external"
+                          href="https://gramps-project.org/"
+                          target="_blank"
+                          rel="noreferrer"
+                          >Gramps</a
+                        ><small>Mac + Windows + Linux</small>
+                      </th>
+                      <td>Powerful, open-source, locally owned research</td>
+                      <td><span class="yes" aria-label="Yes">✅</span></td>
+                      <td><span class="yes" aria-label="Yes">✅</span></td>
+                      <td><span class="yes" aria-label="Yes">✅</span></td>
+                      <td>
+                        <strong>$0.</strong> Very capable, but denser to learn; keep its native
+                        backup because GEDCOM cannot carry every Gramps detail.
+                      </td>
+                    </tr>
+                    <tr id="option-rootsmagic">
+                      <th scope="row">
+                        <a
+                          class="external"
+                          href="https://www.rootsmagic.com/RootsMagic/"
+                          target="_blank"
+                          rel="noreferrer"
+                          >RootsMagic 11</a
+                        ><small>Mac + Windows</small>
+                      </th>
+                      <td>A practical, full desktop database at a fair price</td>
+                      <td><span class="yes" aria-label="Yes">✅</span> Essentials</td>
+                      <td><span class="yes" aria-label="Yes">✅</span></td>
+                      <td><span class="yes" aria-label="Yes">✅</span></td>
+                      <td>
+                        <strong>$0 Essentials; $39.95 full.</strong> A future major upgrade is
+                        priced separately.
+                      </td>
+                    </tr>
+                    <tr id="option-macfamilytree">
+                      <th scope="row">
+                        <a
+                          class="external"
+                          href="https://www.syniumsoftware.com/en/macfamilytree"
+                          target="_blank"
+                          rel="noreferrer"
+                          >MacFamilyTree 11</a
+                        ><small>Mac + optional iPhone/iPad</small>
+                      </th>
+                      <td>A polished, visual, Apple-native family archive</td>
+                      <td>Demo</td>
+                      <td><span class="yes" aria-label="Yes">✅</span></td>
+                      <td><span class="yes" aria-label="Yes">✅</span></td>
+                      <td>
+                        <strong>$70 ($35 on occasion).</strong> Permanent use of the version you
+                        buy; free updates until the next major version. Optional
+                        <a
+                          class="external"
+                          href="https://www.syniumsoftware.com/mobilefamilytree"
+                          target="_blank"
+                          rel="noreferrer"
+                          >MobileFamilyTree</a
+                        >
+                        <strong>$30 ($15 on occasion)</strong>. Apple devices only.
+                      </td>
+                    </tr>
+                    <tr id="option-ancestry">
+                      <th scope="row">
+                        <a
+                          class="external"
+                          href="https://www.ancestry.com/c/allproducts"
+                          target="_blank"
+                          rel="noreferrer"
+                          >Ancestry</a
+                        ><small>Web + mobile</small>
+                      </th>
+                      <td>Record hints, DNA connections, and a large user network</td>
+                      <td><span class="yes" aria-label="Yes">✅</span> Tree</td>
+                      <td><span class="yes" aria-label="Yes">✅</span></td>
+                      <td><span class="no" aria-label="No">—</span></td>
+                      <td>
+                        <strong>$24.99–$59.99/month</strong> for U.S. record plans; lower effective
+                        rates for longer terms. Auto-renews, and many records require membership.
+                      </td>
+                    </tr>
+                    <tr id="option-myheritage">
+                      <th scope="row">
+                        <a
+                          class="external"
+                          href="https://www.myheritage.com/pricing"
+                          target="_blank"
+                          rel="noreferrer"
+                          >MyHeritage</a
+                        ><small>Web + mobile</small>
+                      </th>
+                      <td>International matching, records, DNA, and photo tools</td>
+                      <td><span class="yes" aria-label="Yes">✅</span> Limited</td>
+                      <td><span class="yes" aria-label="Yes">✅</span></td>
+                      <td><span class="partial" aria-label="Limited or guided">◐</span> Builder</td>
+                      <td>
+                        <strong>Basic: $0</strong> for up to 250 people and 500 MB. Paid plans are
+                        annual and shown at checkout; price varies by region and promotion.
+                      </td>
+                    </tr>
+                    <tr id="option-family-tree-maker">
+                      <th scope="row">
+                        <a
+                          class="external"
+                          href="https://www.mackiev.com/store_us.html?productTab=ftmbutton"
+                          target="_blank"
+                          rel="noreferrer"
+                          >Family Tree Maker 2024</a
+                        ><small>Mac + Windows</small>
+                      </th>
+                      <td>An offline master tree that can sync with Ancestry</td>
+                      <td><span class="no" aria-label="No">—</span></td>
+                      <td><span class="yes" aria-label="Yes">✅</span></td>
+                      <td><span class="yes" aria-label="Yes">✅</span></td>
+                      <td>
+                        <strong>$80 download.</strong> Optional TreeVault is $1.99/month after the
+                        included first year; add-ons cost extra.
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <p class="table-footnote">
+                “Free tree” does not always mean free record images. “GEDCOM support” also varies by
+                version and vendor extensions, so test an export before committing your only copy.
+              </p>
+            </section>
+
+            <section
+              id="workflow"
+              class="guide-section about-anchor"
+              aria-labelledby="workflow-title"
+            >
+              <div class="section-heading">
+                <p class="section-kicker">A dependable workflow</p>
+                <h2 id="workflow-title">
+                  Keep one master tree, several safe copies, and a clear purpose
+                </h2>
+                <p>
+                  GeneaQuilt works best as one step in a careful research practice—not as the only
+                  place your family history exists.
+                </p>
+              </div>
+
+              <ol class="workflow-list">
+                <li>
+                  <span>01</span>
+                  <div>
+                    <h3>Document in your main app</h3>
+                    <p>
+                      Add sources, citations, notes, media, and uncertainty where the software can
+                      preserve them fully.
+                    </p>
+                  </div>
+                </li>
+                <li>
+                  <span>02</span>
+                  <div>
+                    <h3>Back up in two formats</h3>
+                    <p>
+                      Keep the app’s native backup plus a dated GEDCOM export. Store media
+                      separately if it is not embedded.
+                    </p>
+                  </div>
+                </li>
+                <li>
+                  <span>03</span>
+                  <div>
+                    <h3>Explore a copy here</h3>
+                    <p>
+                      Use the quilt to spot structural patterns, isolated groups, and branches that
+                      need a closer look.
+                    </p>
+                  </div>
+                </li>
+                <li>
+                  <span>04</span>
+                  <div>
+                    <h3>Correct the evidence, not just the picture</h3>
+                    <p>
+                      A visualization shows what the file claims; it cannot prove that a
+                      relationship or date is accurate.
+                    </p>
+                  </div>
+                </li>
+              </ol>
+
+              <div class="backup-callout">
+                <div class="backup-number">3·2·1</div>
+                <div>
+                  <h3>A useful backup rule</h3>
+                  <p>
+                    Keep three copies, on two different kinds of storage, with one copy in another
+                    safe location.
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            <section
+              id="privacy"
+              class="guide-section about-anchor"
+              aria-labelledby="privacy-title"
+            >
+              <div class="section-heading">
+                <p class="section-kicker">Privacy and sharing</p>
+                <h2 id="privacy-title">Family files deserve the same care as family papers</h2>
+                <p>
+                  A tree may contain living people’s names, dates, addresses, notes, and
+                  relationships. Decide who should see an export before you send or publish it.
+                </p>
+              </div>
+
+              <div class="privacy-grid">
+                <article>
+                  <span class="privacy-icon" aria-hidden="true">01</span>
+                  <h3>While you explore</h3>
+                  <p>
+                    The selected GEDCOM is read in your browser and is not sent to GeneaQuilt for
+                    processing.
+                  </p>
+                </article>
+                <article>
+                  <span class="privacy-icon" aria-hidden="true">02</span>
+                  <h3>Before you share</h3>
+                  <p>
+                    Use your source app’s privacy controls to remove or obscure living people and
+                    sensitive notes.
+                  </p>
+                </article>
+                <article>
+                  <span class="privacy-icon" aria-hidden="true">03</span>
+                  <h3>After you export</h3>
+                  <p>
+                    Interactive HTML, PDFs, and screenshots can contain family data. Treat them as
+                    copies of the tree.
+                  </p>
+                </article>
+              </div>
+
+              <div class="faq-list">
+                <details>
+                  <summary>
+                    <span>Does GeneaQuilt change my GEDCOM file?</span
+                    ><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" /></svg>
+                  </summary>
+                  <p>
+                    No. It reads the copy you choose. Changes made while exploring are not written
+                    back to your original family-tree database.
+                  </p>
+                </details>
+                <details>
+                  <summary>
+                    <span>Can I build or edit my family tree here?</span
+                    ><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" /></svg>
+                  </summary>
+                  <p>
+                    Not currently. GeneaQuilt is intentionally an explorer. Use one of the programs
+                    above to maintain people, events, sources, media, and corrections.
+                  </p>
+                </details>
+                <details>
+                  <summary>
+                    <span>Why did a detail disappear after a GEDCOM transfer?</span
+                    ><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" /></svg>
+                  </summary>
+                  <p>
+                    Programs implement different GEDCOM versions and extensions. Some proprietary
+                    fields have no exact equivalent, so compare totals and important records after
+                    every migration.
+                  </p>
+                </details>
+                <details>
+                  <summary>
+                    <span>Is a bigger screen required?</span
+                    ><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" /></svg>
+                  </summary>
+                  <p>
+                    The site and this guide work on phones and tablets, but a large, dense quilt is
+                    naturally easier to study on a laptop or desktop display.
+                  </p>
+                </details>
+              </div>
+            </section>
+
+            <section
+              id="credits"
+              class="guide-section about-anchor credits-section"
+              aria-labelledby="credits-title"
+            >
+              <div class="section-heading">
+                <p class="section-kicker">Origins, credit, and scope</p>
+                <h2 id="credits-title">A browser port of an original research idea</h2>
+                <p>
+                  This project builds on the
+                  <a
+                    class="external"
+                    href="https://github.com/jdfekete/geneaquilt"
+                    target="_blank"
+                    rel="noreferrer"
+                    >original Java GeneaQuilts project</a
+                  >
+                  by Jean-Daniel Fekete, Pierre Dragicevic, and INRIA. Their work introduced the
+                  diagonally filled matrix, overview, timeline, search, and Bring-and-Slide ideas
+                  preserved here.
+                </p>
+              </div>
+
+              <div class="credit-links">
+                <a
+                  class="credit-link external"
+                  href="https://github.com/jdfekete/geneaquilt"
+                  target="_blank"
+                  rel="noreferrer"
+                  ><span>Original project</span><strong>jdfekete/geneaquilt</strong></a
+                >
+                <a
+                  class="credit-link external"
+                  href="https://github.com/AShortcuts/GeneaQuilt-New"
+                  target="_blank"
+                  rel="noreferrer"
+                  ><span>Current web port</span><strong>AShortcuts/GeneaQuilt-New</strong></a
+                >
+                <a
+                  class="credit-link external"
+                  href="https://github.com/AShortcuts/GeneaQuilt-New/blob/main/LICENSE"
+                  target="_blank"
+                  rel="noreferrer"
+                  ><span>License</span><strong>BSD 3-Clause</strong></a
+                >
+              </div>
+
+              <p class="scope-note">
+                The web version is an independent port, not a claim of full feature parity with the
+                original Java application. It keeps the central visualization model while adapting
+                the interface and implementation for modern browsers.
+              </p>
+
+              <details class="source-notes">
+                <summary>
+                  <span>Sources used for definitions, features, and prices</span>
+                  <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" /></svg>
+                </summary>
+                <div class="source-links">
+                  <a
+                    class="external"
+                    href="https://www.aviz.fr/geneaquilts/"
+                    target="_blank"
+                    rel="noreferrer"
+                    >Original GeneaQuilts research site</a
+                  >
+                  <a
+                    class="external"
+                    href="https://aviz.fr/old/geneaquilts/geneaquilt.pdf"
+                    target="_blank"
+                    rel="noreferrer"
+                    >GeneaQuilts paper: scale, layout, and evaluation</a
+                  >
+                  <a
+                    class="external"
+                    href="https://www.dgp.utoronto.ca/~ravin/papers/infovis2005_geneology.pdf"
+                    target="_blank"
+                    rel="noreferrer"
+                    >Dual Trees paper</a
+                  >
+                  <a
+                    class="external"
+                    href="https://www.researchgate.net/publication/47544578_PedVis_A_Structured_Space-Efficient_Technique_for_Pedigree_Visualization"
+                    target="_blank"
+                    rel="noreferrer"
+                    >PedVis H-tree pedigree paper</a
+                  >
+                  <a
+                    class="external"
+                    href="https://www.researchgate.net/publication/228978452_Relinking_marriages_in_genealogies"
+                    target="_blank"
+                    rel="noreferrer"
+                    >P-graphs and relinking marriages paper</a
+                  >
+                  <a
+                    class="external"
+                    href="https://repositum.tuwien.at/handle/20.500.12708/220457"
+                    target="_blank"
+                    rel="noreferrer"
+                    >TU Wien large genealogy layout thesis</a
+                  >
+                  <a
+                    class="external"
+                    href="https://gedcom.io/specifications/FamilySearchGEDCOMv7.html"
+                    target="_blank"
+                    rel="noreferrer"
+                    >FamilySearch GEDCOM 7 specification</a
+                  >
+                  <a
+                    class="external"
+                    href="https://www.familysearch.org/en/help/helpcenter/article/what-is-the-purpose-of-familysearch-and-family-tree"
+                    target="_blank"
+                    rel="noreferrer"
+                    >FamilySearch purpose and free shared tree</a
+                  >
+                  <a
+                    class="external"
+                    href="https://www.wikitree.com/wiki/Help:GEDCOMpare"
+                    target="_blank"
+                    rel="noreferrer"
+                    >WikiTree GEDCOMpare help</a
+                  >
+                  <a
+                    class="external"
+                    href="https://www.gramps-project.org/wiki/index.php/Download"
+                    target="_blank"
+                    rel="noreferrer"
+                    >Gramps download and GEDCOM guidance</a
+                  >
+                  <a
+                    class="external"
+                    href="https://www.rootsmagic.com/RootsMagic"
+                    target="_blank"
+                    rel="noreferrer"
+                    >RootsMagic editions and price</a
+                  >
+                  <a
+                    class="external"
+                    href="https://www.syniumsoftware.com/macfamilytree/howtobuy"
+                    target="_blank"
+                    rel="noreferrer"
+                    >MacFamilyTree price and upgrades</a
+                  >
+                  <a
+                    class="external"
+                    href="https://www.syniumsoftware.com/mobilefamilytree/questions"
+                    target="_blank"
+                    rel="noreferrer"
+                    >MobileFamilyTree price and major-version policy</a
+                  >
+                  <a
+                    class="external"
+                    href="https://www.ancestry.com/c/allproducts"
+                    target="_blank"
+                    rel="noreferrer"
+                    >Ancestry U.S. memberships</a
+                  >
+                  <a
+                    class="external"
+                    href="https://www.myheritage.com/help/en/articles/12852341-is-myheritage-free"
+                    target="_blank"
+                    rel="noreferrer"
+                    >MyHeritage free limits and subscriptions</a
+                  >
+                  <a
+                    class="external"
+                    href="https://www.mackiev.com/store_us.html?productTab=ftmbutton"
+                    target="_blank"
+                    rel="noreferrer"
+                    >Family Tree Maker U.S. store</a
+                  >
+                </div>
+              </details>
+
+              <div class="closing-cta">
+                <div>
+                  <p class="section-kicker">Ready when you are</p>
+                  <h2>Open a copy of your tree—or start with the sample.</h2>
+                </div>
+                <a class="button button-primary" href="/">Open GeneaQuilt</a>
+              </div>
+            </section>
+          </div>
+        </div>
+      </main>
+
+      <footer class="about-footer">
+        <a class="brand-link footer-brand" href="/">GeneaQuilt</a>
+        <p>Built to make complicated family networks easier to understand.</p>
+        <a href="#overview">Back to the beginning</a>
+      </footer>
+    </div>
+
+    <button class="back-to-top" type="button">Top</button>
+
+    <script type="module" src="/src/about.js"></script>
+  </body>
+</html>

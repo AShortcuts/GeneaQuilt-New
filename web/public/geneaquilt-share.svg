@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="top-thread" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#4b6958" />
+      <stop offset="0.55" stop-color="#a96f32" />
+      <stop offset="1" stop-color="#b75f45" />
+    </linearGradient>
+    <pattern id="paper-lines" width="9" height="9" patternUnits="userSpaceOnUse">
+      <path d="M0 0V9" stroke="#2d312b" stroke-opacity="0.026" />
+    </pattern>
+    <filter id="soft-shadow" x="-20%" y="-20%" width="140%" height="160%">
+      <feDropShadow dx="0" dy="18" stdDeviation="20" flood-color="#3b3327" flood-opacity="0.14" />
+    </filter>
+    <clipPath id="quilt-clip">
+      <rect width="410" height="514" rx="28" />
+    </clipPath>
+  </defs>
+
+  <rect width="1200" height="630" fill="#f3eee5" />
+  <rect width="1200" height="630" fill="url(#paper-lines)" />
+  <circle cx="1120" cy="-40" r="290" fill="#f5e7d1" opacity="0.78" />
+  <circle cx="-55" cy="615" r="250" fill="#e4ece5" opacity="0.72" />
+  <rect width="1200" height="8" fill="url(#top-thread)" />
+
+  <g transform="translate(88 68)">
+    <g transform="rotate(45 21 21)">
+      <rect x="2" y="2" width="17" height="17" rx="4" fill="#4b6958" />
+      <rect x="23" y="2" width="17" height="17" rx="4" fill="#a96f32" />
+      <rect x="2" y="23" width="17" height="17" rx="4" fill="#b75f45" />
+      <rect x="23" y="23" width="17" height="17" rx="4" fill="#fffdf8" stroke="#9caf9f" />
+    </g>
+    <text x="70" y="19" fill="#a96f32" font-family="Avenir Next, Avenir, sans-serif" font-size="15" font-weight="700" letter-spacing="3.2">FAMILY TREE WORKSPACE</text>
+    <text x="70" y="46" fill="#6a6f65" font-family="Avenir Next, Avenir, sans-serif" font-size="16">Private, visual GEDCOM exploration</text>
+  </g>
+
+  <text x="88" y="214" fill="#2d312b" font-family="Charter, Georgia, serif" font-size="76" font-weight="700" letter-spacing="-2.4">GeneaQuilt</text>
+  <text x="88" y="286" fill="#365143" font-family="Charter, Georgia, serif" font-size="42" font-weight="600" letter-spacing="-0.8">See the whole family story.</text>
+  <text x="88" y="345" fill="#6a6f65" font-family="Avenir Next, Avenir, sans-serif" font-size="21">
+    <tspan x="88" dy="0">Turn a dense family tree into one calm, coherent map.</tspan>
+    <tspan x="88" dy="33">Follow every branch without losing the bigger picture.</tspan>
+  </text>
+
+  <g transform="translate(88 495)" font-family="Avenir Next, Avenir, sans-serif" font-size="16" font-weight="600" fill="#4d554d">
+    <g>
+      <circle cx="10" cy="10" r="10" fill="#dce8df" />
+      <path d="m5.5 10 3 3 6-7" fill="none" stroke="#365143" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" />
+      <text x="30" y="16">No account</text>
+    </g>
+    <g transform="translate(170)">
+      <circle cx="10" cy="10" r="10" fill="#dce8df" />
+      <path d="m5.5 10 3 3 6-7" fill="none" stroke="#365143" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" />
+      <text x="30" y="16">Stays in your browser</text>
+    </g>
+    <g transform="translate(430)">
+      <circle cx="10" cy="10" r="10" fill="#dce8df" />
+      <path d="m5.5 10 3 3 6-7" fill="none" stroke="#365143" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" />
+      <text x="30" y="16">Open source</text>
+    </g>
+  </g>
+
+  <text x="88" y="579" fill="#8a8e84" font-family="Avenir Next, Avenir, sans-serif" font-size="14" letter-spacing="1.5">GENEAQUILT-NEW.PAGES.DEV</text>
+
+  <g transform="translate(735 58)" filter="url(#soft-shadow)">
+    <rect width="410" height="514" rx="28" fill="#fffdf8" stroke="#d4cab9" stroke-width="2" />
+    <g clip-path="url(#quilt-clip)">
+      <circle cx="355" cy="50" r="150" fill="#f5e7d1" opacity="0.76" />
+      <circle cx="60" cy="490" r="130" fill="#e4ece5" opacity="0.7" />
+
+      <g stroke="#d9d1c4" stroke-width="1">
+        <path d="M36 82H374M36 150H374M36 218H374M36 286H374M36 354H374M36 422H374" />
+        <path d="M76 48V452M142 48V452M208 48V452M274 48V452M340 48V452" />
+      </g>
+
+      <g fill="none" stroke-linecap="round" stroke-width="4">
+        <path d="M48 82C96 82 106 150 142 150s42 68 66 68 42 68 66 68 42 68 66 68" stroke="#4b6958" />
+        <path d="M48 286c50 0 54-68 94-68s42-68 66-68 42-68 66-68" stroke="#a96f32" />
+        <path d="M76 422c42 0 44-68 66-68s44-68 66-68 44-68 66-68 46-68 82-68" stroke="#b75f45" />
+        <path d="M142 354c24 0 42 68 66 68s42-68 66-68" stroke="#7f9a88" stroke-dasharray="3 9" />
+      </g>
+
+      <g fill="#fffdf8" stroke="#4b6958" stroke-width="4">
+        <circle cx="48" cy="82" r="8" />
+        <circle cx="48" cy="286" r="8" />
+        <circle cx="76" cy="422" r="8" />
+        <circle cx="274" cy="82" r="8" />
+        <circle cx="340" cy="354" r="8" />
+        <circle cx="356" cy="218" r="8" />
+      </g>
+
+      <g fill="#fffdf8" stroke="#a96f32" stroke-width="4">
+        <rect x="132" y="140" width="20" height="20" rx="3" transform="rotate(45 142 150)" />
+        <rect x="198" y="208" width="20" height="20" rx="3" transform="rotate(45 208 218)" />
+        <rect x="264" y="276" width="20" height="20" rx="3" transform="rotate(45 274 286)" />
+      </g>
+
+      <g font-family="Avenir Next, Avenir, sans-serif" font-size="11" font-weight="700" letter-spacing="1.2" fill="#7d8278">
+        <text x="35" y="62">PEOPLE</text>
+        <text x="118" y="128">FAMILY</text>
+        <text x="250" y="466">GENERATIONS</text>
+      </g>
+    </g>
+  </g>
+</svg>
