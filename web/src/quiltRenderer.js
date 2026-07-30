@@ -1,4 +1,12 @@
 import { interpolateCamera } from "./focusModel.js";
+import { calculateTwoPointerGesture, stabilizeTwoPointerGesture } from "./twoPointerGesture.ts";
+import {
+  TRACKPAD_ZOOM_SPEED,
+  trackpadZoomMultiplier,
+  WHEEL_PAN_SPEED,
+  wheelDeltaPixels,
+  wheelGestureMode,
+} from "./zoomInteraction.js";
 
 const CELL_SIZE = 14;
 const INDI_LINE_SPACING = 0.85;
@@ -14,15 +22,32 @@ const FIT_PADDING_X = 24;
 const FIT_PADDING_Y = 28;
 const SMALL_TEXT_THRESHOLD = 0.42;
 const FAMILY_TEXT_THRESHOLD = 0.72;
-const WHEEL_PAN_SPEED = 0.55;
-const DEFAULT_WHEEL_ZOOM_SPEED = 0.00115;
 const MINIMAP_PADDING = 10;
 const SLIDE_DISTANCE = 88;
 const SLIDE_COMMIT_THRESHOLD = 0.98;
 const LINE_HIT_SLOP_PX = 10;
 const HIGHLIGHT_COLORS = ["#b75f45", "#4b6958", "#527886", "#a96f32"];
 
+export function canvasPointerIntent(hit, selectedId) {
+  if (!hit) {
+    return "pan";
+  }
+  if (hit.kind === "person" && hit.id === selectedId) {
+    return "slide";
+  }
+  return "select";
+}
+
 export class QuiltRenderer {
+  /**
+   * @param {HTMLCanvasElement} canvas
+   * @param {{
+   *   minimapCanvas?: HTMLCanvasElement | null,
+   *   onSelect?: ((id: string) => void) | null,
+   *   onViewportChange?: ((ids: string[]) => void) | null,
+   *   onRotationChange?: ((degrees: number) => void) | null
+   * }} options
+   */
   constructor(
     canvas,
     {
@@ -62,7 +87,7 @@ export class QuiltRenderer {
     this.isolateEnabled = false;
     this.isolateDepth = 3;
     this.expandedNames = true;
-    this.zoomSpeed = DEFAULT_WHEEL_ZOOM_SPEED;
+    this.zoomSpeed = TRACKPAD_ZOOM_SPEED;
     this.theme = "light";
     this.palette = rendererPalette("light");
     this.rotationDegrees = 0;
@@ -103,20 +128,22 @@ export class QuiltRenderer {
       if (this.activePointers.size > 1) {
         return;
       }
-      this.dragging = true;
       this.pointerDown = { x: event.clientX, y: event.clientY };
       this.lastPointer = { x: event.clientX, y: event.clientY };
       const hit = this.hitTest(event.offsetX, event.offsetY);
-      if (hit && hit.id === this.selectedId && hit.kind === "person") {
-        this.potentialSlide = hit.id;
-      } else {
-        this.potentialSlide = null;
-      }
+      const intent = canvasPointerIntent(hit, this.selectedId);
+      this.dragging = intent !== "select";
+      this.potentialSlide = intent === "slide" && hit ? hit.id : null;
+      this.canvas.classList.remove("is-over-record");
+      this.canvas.classList.toggle("is-panning", intent === "pan");
     });
 
     this.canvas.addEventListener("pointermove", (event) => {
       if (this.activePointers.has(event.pointerId)) {
         this.activePointers.set(event.pointerId, pointerPoint(event));
+      }
+      if (this.activePointers.size === 0) {
+        this.updatePointerCursor(event.offsetX, event.offsetY);
       }
 
       if (this.rotationGesture) {
@@ -169,8 +196,14 @@ export class QuiltRenderer {
     this.canvas.addEventListener("pointerup", (event) => {
       this.canvas.releasePointerCapture(event.pointerId);
       if (this.rotationGesture) {
+        const endedGesturePointer =
+          event.pointerId === this.rotationGesture.firstPointerId ||
+          event.pointerId === this.rotationGesture.secondPointerId;
         this.activePointers.delete(event.pointerId);
-        this.finishRotationGesture();
+        if (endedGesturePointer) {
+          this.finishRotationGesture();
+        }
+        this.canvas.classList.remove("is-panning");
         return;
       }
       this.activePointers.delete(event.pointerId);
@@ -192,6 +225,8 @@ export class QuiltRenderer {
         this.pointerDown = null;
         this.lastPointer = null;
         this.potentialSlide = null;
+        this.canvas.classList.remove("is-panning");
+        this.updatePointerCursor(event.offsetX, event.offsetY);
         return;
       }
 
@@ -206,34 +241,78 @@ export class QuiltRenderer {
       this.pointerDown = null;
       this.lastPointer = null;
       this.potentialSlide = null;
+      this.canvas.classList.remove("is-panning");
+      this.updatePointerCursor(event.offsetX, event.offsetY);
     });
 
     this.canvas.addEventListener("pointercancel", (event) => {
       if (this.activePointers.has(event.pointerId)) {
         this.activePointers.delete(event.pointerId);
       }
-      this.finishRotationGesture();
+      if (
+        this.rotationGesture &&
+        (event.pointerId === this.rotationGesture.firstPointerId ||
+          event.pointerId === this.rotationGesture.secondPointerId)
+      ) {
+        this.finishRotationGesture();
+      }
       this.dragging = false;
       this.pointerDown = null;
       this.lastPointer = null;
       this.potentialSlide = null;
+      this.canvas.classList.remove("is-panning", "is-over-record");
     });
 
     this.canvas.addEventListener("wheel", (event) => {
       event.preventDefault();
-      if (event.ctrlKey || event.metaKey) {
-        const normalizedDelta = normalizeWheelDelta(event);
-        const multiplier = Math.exp(-normalizedDelta * this.zoomSpeed);
+      if (wheelGestureMode(event) === "zoom") {
+        const multiplier = trackpadZoomMultiplier(event.deltaY, event.deltaMode, this.zoomSpeed);
         this.zoomAt(event.offsetX, event.offsetY, multiplier);
         return;
       }
 
-      const deltaScale = event.deltaMode === WheelEvent.DOM_DELTA_LINE ? 14 : 1;
       this.panBy(
-        -event.deltaX * deltaScale * WHEEL_PAN_SPEED,
-        -event.deltaY * deltaScale * WHEEL_PAN_SPEED,
+        -wheelDeltaPixels(event.deltaX, event.deltaMode, this.width) * WHEEL_PAN_SPEED,
+        -wheelDeltaPixels(event.deltaY, event.deltaMode, this.height) * WHEEL_PAN_SPEED,
       );
     });
+
+    this.canvas.addEventListener("keydown", (event) => {
+      const panStep = Math.max(48, Math.min(this.width, this.height) * 0.1);
+      switch (event.key) {
+        case "ArrowLeft":
+          this.panBy(panStep, 0);
+          break;
+        case "ArrowRight":
+          this.panBy(-panStep, 0);
+          break;
+        case "ArrowUp":
+          this.panBy(0, panStep);
+          break;
+        case "ArrowDown":
+          this.panBy(0, -panStep);
+          break;
+        case "+":
+        case "=":
+          this.zoomBy(1.2);
+          break;
+        case "-":
+        case "_":
+          this.zoomBy(0.83);
+          break;
+        case "Home":
+        case "0":
+          this.fit();
+          break;
+        default:
+          return;
+      }
+      event.preventDefault();
+    });
+  }
+
+  updatePointerCursor(screenX, screenY) {
+    this.canvas.classList.toggle("is-over-record", Boolean(this.hitTest(screenX, screenY)));
   }
 
   bindMinimapEvents() {
@@ -287,6 +366,18 @@ export class QuiltRenderer {
     this.vertexById = new Map(this.geometry.vertices.map((vertex) => [vertex.id, vertex]));
     this.vertexRects = this.geometry.vertices;
     this.fit();
+  }
+
+  destroy() {
+    this.resizeObserver.disconnect();
+    this.cancelCameraAnimation();
+    this.onSelect = null;
+    this.onViewportChange = null;
+    this.onRotationChange = null;
+    this.scene = null;
+    this.geometry = null;
+    this.vertexById.clear();
+    this.vertexRects = [];
   }
 
   setInteraction(interaction) {
@@ -383,8 +474,15 @@ export class QuiltRenderer {
   }
 
   startRotationGesture() {
-    const pointers = [...this.activePointers.values()];
+    const pointers = [...this.activePointers.entries()];
+    const [firstPointerId, first] = pointers[0];
+    const [secondPointerId, second] = pointers[1];
+    const gesture = calculateTwoPointerGesture(first, second, first, second);
+    const bounds = this.canvas.getBoundingClientRect();
+    const startX = gesture.startMidpoint.x - bounds.left;
+    const startY = gesture.startMidpoint.y - bounds.top;
     this.cancelCameraAnimation();
+    this.canvas.classList.remove("is-panning", "is-over-record");
     this.dragging = false;
     this.pointerDown = null;
     this.lastPointer = null;
@@ -393,11 +491,13 @@ export class QuiltRenderer {
       this.finishSlide({ restoreCamera: true });
     }
     this.rotationGesture = {
-      anchorPointerId: [...this.activePointers.keys()][0],
-      rotatingPointerId: [...this.activePointers.keys()][1],
-      anchor: pointers[0],
-      start: pointers[1],
+      firstPointerId,
+      secondPointerId,
+      startFirst: first,
+      startSecond: second,
       initialRotation: this.rotationDegrees,
+      initialScale: this.scale,
+      worldAnchor: this.screenToWorld(startX, startY),
     };
   }
 
@@ -405,24 +505,44 @@ export class QuiltRenderer {
     if (!this.rotationGesture) {
       return;
     }
-    const anchor = this.activePointers.get(this.rotationGesture.anchorPointerId);
-    const current = this.activePointers.get(this.rotationGesture.rotatingPointerId);
-    if (!anchor || !current) {
+    const currentFirst = this.activePointers.get(this.rotationGesture.firstPointerId);
+    const currentSecond = this.activePointers.get(this.rotationGesture.secondPointerId);
+    if (!currentFirst || !currentSecond) {
       return;
     }
-    this.setRotationDegrees(
-      anchoredRotationDegrees({
-        anchor,
-        start: this.rotationGesture.start,
-        current,
-        initialRotation: this.rotationGesture.initialRotation,
-      }),
-      { notify: true },
+    const gesture = stabilizeTwoPointerGesture(
+      calculateTwoPointerGesture(
+        this.rotationGesture.startFirst,
+        this.rotationGesture.startSecond,
+        currentFirst,
+        currentSecond,
+      ),
     );
+    const bounds = this.canvas.getBoundingClientRect();
+    const screenX = gesture.currentMidpoint.x - bounds.left;
+    const screenY = gesture.currentMidpoint.y - bounds.top;
+    this.rotationDegrees = normalizeRotationDegrees(
+      this.rotationGesture.initialRotation + gesture.rotationDegrees,
+    );
+    this.rotationRadians = (this.rotationDegrees * Math.PI) / 180;
+    this.scale = clamp(this.rotationGesture.initialScale * gesture.scale, MIN_SCALE, MAX_SCALE);
+    const rotated = rotatePoint(
+      this.rotationGesture.worldAnchor,
+      sceneCenter(this.geometry),
+      this.rotationRadians,
+    );
+    this.offsetX = screenX - rotated.x * this.scale;
+    this.offsetY = screenY - rotated.y * this.scale;
+    this.onRotationChange?.(this.rotationDegrees);
+    this.render();
   }
 
   finishRotationGesture() {
     this.rotationGesture = null;
+    if (this.activePointers.size >= 2) {
+      this.startRotationGesture();
+      return;
+    }
     if (this.activePointers.size === 1) {
       const [point] = this.activePointers.values();
       this.dragging = true;
@@ -442,6 +562,63 @@ export class QuiltRenderer {
     });
   }
 
+  exportPng({ mode = "current" } = {}) {
+    if (mode === "current") {
+      return canvasToBlob(this.canvas);
+    }
+    if (mode !== "complete") {
+      return Promise.reject(new Error(`Unknown PNG export mode: ${mode}`));
+    }
+    if (!this.geometry) {
+      return Promise.reject(new Error("The complete GeneaQuilt diagram is not ready."));
+    }
+
+    const bounds = computeRotatedBounds(
+      [this.geometry.bounds],
+      this.rotationRadians,
+      sceneCenter(this.geometry),
+    );
+    const padding = 48;
+    const maximumDimension = 8192 - padding * 2;
+    const dimensionScale = Math.min(
+      2,
+      maximumDimension / Math.max(1, bounds.width),
+      maximumDimension / Math.max(1, bounds.height),
+    );
+    const areaScale = Math.sqrt(32_000_000 / Math.max(1, bounds.width * bounds.height));
+    const scale = Math.max(0.0001, Math.min(dimensionScale, areaScale));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(bounds.width * scale + padding * 2));
+    canvas.height = Math.max(1, Math.round(bounds.height * scale + padding * 2));
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      return Promise.reject(new Error("The browser could not prepare the complete PNG canvas."));
+    }
+
+    const exportRenderer = Object.create(this);
+    Object.assign(exportRenderer, {
+      ctx,
+      width: canvas.width,
+      height: canvas.height,
+      scale,
+      offsetX: padding - bounds.minX * scale,
+      offsetY: padding - bounds.minY * scale,
+      slideState: null,
+      potentialSlide: null,
+    });
+    ctx.__geneaquiltPalette = this.palette;
+    drawPaper(ctx, canvas.width, canvas.height);
+    ctx.save();
+    applySceneTransform(ctx, exportRenderer.sceneTransform());
+    drawGenerationBlocks(ctx, this.geometry, exportRenderer);
+    drawGrid(ctx, this.geometry, exportRenderer, this.geometry.connectionRanges);
+    drawHighlightPaths(ctx, this.geometry, exportRenderer);
+    drawEdges(ctx, this.geometry, exportRenderer);
+    drawVertices(ctx, this.geometry, exportRenderer);
+    ctx.restore();
+    return canvasToBlob(canvas);
+  }
+
   fit({ animated = false } = {}) {
     if (!this.geometry) {
       return;
@@ -453,6 +630,38 @@ export class QuiltRenderer {
       sceneCenter(this.geometry),
     );
     this.fitBounds(bounds, { animated });
+  }
+
+  getCameraState() {
+    return {
+      scale: this.scale,
+      offsetX: this.offsetX,
+      offsetY: this.offsetY,
+      rotationDegrees: this.rotationDegrees,
+    };
+  }
+
+  restoreCamera(camera, { animated = false } = {}) {
+    const nextRotation = normalizeRotationDegrees(camera.rotationDegrees);
+    const rotationChanged = nextRotation !== this.rotationDegrees;
+    this.rotationDegrees = nextRotation;
+    this.rotationRadians = (nextRotation * Math.PI) / 180;
+    if (rotationChanged) {
+      this.onRotationChange?.(nextRotation);
+    }
+
+    const target = {
+      scale: camera.scale,
+      offsetX: camera.offsetX,
+      offsetY: camera.offsetY,
+    };
+    if (animated) {
+      this.animateCameraTo(target);
+      return;
+    }
+    this.cancelCameraAnimation();
+    this.applyCamera(target);
+    this.render();
   }
 
   fitBounds(bounds, { animated = false } = {}) {
@@ -486,6 +695,36 @@ export class QuiltRenderer {
 
     const bounds = computeRotatedBounds(vertices, this.rotationRadians, sceneCenter(this.geometry));
     this.fitBounds(bounds, { animated });
+  }
+
+  focusOnVertex(id, { scale = 1, animated = false } = {}) {
+    if (!this.geometry) {
+      return;
+    }
+
+    const vertex = this.vertexById.get(id);
+    if (!vertex) {
+      return;
+    }
+
+    const targetScale = clamp(scale, MIN_SCALE, MAX_SCALE);
+    const rotated = rotatePoint(
+      { x: vertex.x + vertex.width / 2, y: vertex.y + vertex.height / 2 },
+      sceneCenter(this.geometry),
+      this.rotationRadians,
+    );
+    const target = {
+      scale: targetScale,
+      offsetX: this.width / 2 - rotated.x * targetScale,
+      offsetY: this.height / 2 - rotated.y * targetScale,
+    };
+    if (animated) {
+      this.animateCameraTo(target);
+      return;
+    }
+    this.cancelCameraAnimation();
+    this.applyCamera(target);
+    this.render();
   }
 
   zoomBy(multiplier) {
@@ -1285,6 +1524,18 @@ function currentRendererPalette(ctx) {
   return ctx.__geneaquiltPalette ?? rendererPalette("light");
 }
 
+function canvasToBlob(canvas) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) {
+        resolve(blob);
+      } else {
+        reject(new Error("The browser could not create the PNG file."));
+      }
+    }, "image/png");
+  });
+}
+
 function drawPaper(ctx, width, height) {
   const palette = currentRendererPalette(ctx);
   ctx.fillStyle = palette.paperColor;
@@ -1977,17 +2228,6 @@ function hexToRgba(hex, alpha) {
   return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 }
 
-function normalizeWheelDelta(event) {
-  const deltaModeScale =
-    event.deltaMode === WheelEvent.DOM_DELTA_LINE
-      ? 16
-      : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
-        ? 120
-        : 1;
-  const normalized = event.deltaY * deltaModeScale;
-  return clamp(normalized, -90, 90);
-}
-
 function fillFamilyPattern(ctx, vertex, scale) {
   const stripePitch = Math.max(2.2, 5 / Math.max(scale, 0.35));
   const palette = currentRendererPalette(ctx);
@@ -2155,7 +2395,7 @@ function buildInteractiveHtmlDocument(renderer, { title, autoPrint }) {
           <h1>${escapeMarkup(title)}</h1>
           <p class="lede">${escapeMarkup(subtitle)}</p>
         </div>
-        <p class="meta">Drag to pan, use the wheel to zoom, adjust the angle, or print to save a PDF.</p>
+        <p class="meta">Drag or two-finger scroll to pan, pinch or use the zoom buttons, adjust the angle, or print to save a PDF.</p>
       </section>
       <section class="shell">
         <div class="controls">
@@ -2249,7 +2489,18 @@ function buildInteractiveHtmlDocument(renderer, { title, autoPrint }) {
 
         stage.addEventListener("wheel", (event) => {
           event.preventDefault();
-          zoom = clamp(zoom * Math.exp(-event.deltaY * 0.0014), 0.45, 8);
+          if (event.ctrlKey || event.metaKey) {
+            zoom = clamp(zoom * Math.exp(-event.deltaY * ${TRACKPAD_ZOOM_SPEED}), 0.45, 8);
+          } else {
+            const scaleX = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? stage.clientWidth : 1;
+            const scaleY = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? stage.clientHeight : 1;
+            panX -= stage.clientWidth
+              ? (event.deltaX * scaleX * ${WHEEL_PAN_SPEED} / stage.clientWidth) * viewBoxWidth
+              : 0;
+            panY -= stage.clientHeight
+              ? (event.deltaY * scaleY * ${WHEEL_PAN_SPEED} / stage.clientHeight) * viewBoxHeight
+              : 0;
+          }
           apply();
         }, { passive: false });
 

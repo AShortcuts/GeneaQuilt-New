@@ -1,5 +1,7 @@
 # Architecture Recommendation
 
+> Historical foundation: this document records the original browser-port recommendation. The accepted multi-method product direction is now defined in [`product-direction.md`](./product-direction.md) and summarized in [`architecture-summary.md`](./architecture-summary.md). Where they differ, the newer accepted documents take precedence.
+
 ## Decision
 
 Build GeneaQuilt as a website with a Rust/Wasm computational core and a browser-native rendering shell.

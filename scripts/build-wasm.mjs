@@ -25,6 +25,11 @@ function requireCommand(command, installHint) {
   }
 }
 
+function commandIsAvailable(command) {
+  const probe = spawnSync(command, ["--version"], { stdio: "ignore" });
+  return !probe.error && probe.status === 0;
+}
+
 requireCommand("cargo", "Install Rust from https://rustup.rs/ and try again.");
 requireCommand(
   "wasm-pack",
@@ -32,14 +37,19 @@ requireCommand(
 );
 
 const outputDirectory = path.relative(crateDirectory, packageDirectory);
-const build = spawnSync(
-  "wasm-pack",
-  ["build", ".", "--target", "web", "--out-dir", outputDirectory, "--release"],
-  {
-    cwd: crateDirectory,
-    stdio: "inherit",
-  },
-);
+const buildArguments = ["build", ".", "--target", "web", "--out-dir", outputDirectory, "--release"];
+
+if (!commandIsAvailable("wasm-opt")) {
+  // wasm-pack otherwise attempts a network install during the build. Release-mode Rust still
+  // produces a working local package; developers with Binaryen installed keep its size pass.
+  console.warn("wasm-opt was not found; building locally without the optional Binaryen size pass.");
+  buildArguments.push("--no-opt");
+}
+
+const build = spawnSync("wasm-pack", buildArguments, {
+  cwd: crateDirectory,
+  stdio: "inherit",
+});
 
 if (build.error) {
   throw build.error;

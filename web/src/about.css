@@ -1,6 +1,6 @@
 html {
   scroll-behavior: smooth;
-  scroll-padding-top: 28px;
+  scroll-padding-top: calc(var(--site-header-height) + 16px);
 }
 
 .about-body {
@@ -36,7 +36,7 @@ html {
 
 .reading-progress {
   position: fixed;
-  z-index: 90;
+  z-index: 110;
   top: 0;
   right: 0;
   left: 0;
@@ -95,7 +95,7 @@ html {
 }
 
 .about-anchor {
-  scroll-margin-top: 28px;
+  scroll-margin-top: calc(var(--site-header-height) + 16px);
 }
 
 .about-intro {
@@ -323,7 +323,7 @@ html {
 
 .desktop-toc {
   position: sticky;
-  top: 26px;
+  top: calc(var(--site-header-height) + 26px);
   align-self: start;
   min-width: 0;
 }
@@ -564,6 +564,66 @@ html {
 
 .visualization-verdict strong {
   color: var(--ink);
+}
+
+.visualization-lab-link {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(170px, 0.42fr) minmax(0, 1.58fr);
+  gap: 8px 34px;
+  align-items: center;
+  margin-top: 26px;
+  padding: 21px 46px 21px 22px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line));
+  border-radius: 15px;
+  background: color-mix(in srgb, var(--accent-soft) 54%, var(--surface));
+  color: var(--ink);
+  text-decoration: none;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.visualization-lab-link::after {
+  position: absolute;
+  right: 20px;
+  color: var(--accent-strong);
+  content: "\2192";
+  font-size: 1.15rem;
+}
+
+.visualization-lab-link:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent-soft) 78%, var(--surface));
+}
+
+.visualization-lab-link span {
+  grid-row: 1 / span 2;
+  color: var(--ochre);
+  font-size: 0.63rem;
+  font-weight: 850;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.visualization-lab-link strong {
+  font-family: Charter, "Iowan Old Style", Palatino, Baskerville, Georgia, serif;
+  font-size: 1.08rem;
+  line-height: 1.25;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+}
+
+.visualization-lab-link:hover strong {
+  color: var(--accent-strong);
+  text-decoration-color: currentColor;
+}
+
+.visualization-lab-link small {
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.5;
 }
 
 .visualization-list {
@@ -1497,7 +1557,7 @@ html {
 
 @media (max-width: 1080px) {
   .about-anchor {
-    scroll-margin-top: 76px;
+    scroll-margin-top: calc(var(--site-header-height) + 16px);
   }
 
   .about-page {
@@ -1516,7 +1576,7 @@ html {
   .mobile-toc {
     position: sticky;
     z-index: 55;
-    top: 9px;
+    top: calc(var(--site-header-height) + 9px);
     display: block;
     max-width: 900px;
     margin: 16px auto 0;
@@ -1774,6 +1834,16 @@ html {
   .visualization-copy {
     grid-template-columns: 1fr;
     gap: 15px;
+  }
+
+  .visualization-lab-link {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 19px 44px 19px 18px;
+  }
+
+  .visualization-lab-link span {
+    grid-row: auto;
   }
 
   .visualization-verdict {

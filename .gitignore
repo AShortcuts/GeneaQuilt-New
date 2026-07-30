@@ -6,3 +6,6 @@ target/
 .env
 .env.*
 !.env.example
+.private/
+.playwright-cli/
+tmp/

@@ -36,31 +36,50 @@
       name="twitter:image:alt"
       content="GeneaQuilt sharing card with a warm parchment background and an organized family-network quilt."
     />
+    <meta name="color-scheme" content="light dark" />
     <meta name="theme-color" content="#f3eee5" />
     <style>
       html {
         background: #f3eee5;
+        color-scheme: light;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        html:not([data-theme]) {
+          background: #171a17;
+          color-scheme: dark;
+        }
+      }
+
+      html[data-theme="light"] {
+        background: #f3eee5;
+        color-scheme: light;
       }
 
       html[data-theme="dark"] {
         background: #171a17;
+        color-scheme: dark;
       }
     </style>
     <script>
-      const storedTheme = localStorage.getItem("geneaquilt-theme");
-      const initialTheme =
-        storedTheme === "light" || storedTheme === "dark"
-          ? storedTheme
-          : window.matchMedia("(prefers-color-scheme: dark)").matches
-            ? "dark"
-            : "light";
-      document.documentElement.dataset.theme = initialTheme;
-      document.documentElement.style.colorScheme = initialTheme;
-      document.querySelector('meta[name="theme-color"]').content =
-        initialTheme === "dark" ? "#171a17" : "#f3eee5";
+      (() => {
+        const storedTheme = localStorage.getItem("geneaquilt-theme");
+        const mediaTheme = window.matchMedia("(prefers-color-scheme: dark)").matches
+          ? "dark"
+          : "light";
+        const initialTheme =
+          storedTheme === "light" || storedTheme === "dark" ? storedTheme : mediaTheme;
+        const root = document.documentElement;
+
+        root.dataset.theme = initialTheme;
+        root.style.colorScheme = initialTheme;
+        document.querySelector('meta[name="theme-color"]').content =
+          initialTheme === "dark" ? "#171a17" : "#f3eee5";
+      })();
     </script>
     <link rel="stylesheet" href="/src/styles.css" />
     <link rel="stylesheet" href="/src/about.css" />
+    <link rel="stylesheet" href="/src/siteHeader.css" />
     <link
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%234b6958'/%3E%3Cpath d='M14 14h16v16H14zM34 14h16v16H34zM14 34h16v16H14zM34 34h16v16H34z' fill='%23f6efe2'/%3E%3Cpath d='M14 14h16v16H14zM34 34h16v16H34z' fill='%23c87552'/%3E%3C/svg%3E"
@@ -72,27 +91,7 @@
     <div class="reading-progress" aria-hidden="true"><span></span></div>
 
     <div class="about-page">
-      <header class="hero about-masthead">
-        <a class="brand-lockup brand-link" href="/" aria-label="GeneaQuilt home">
-          <span class="brand-mark" aria-hidden="true">
-            <span></span><span></span><span></span><span></span>
-          </span>
-          <span>
-            <span class="eyebrow">Family tree workspace</span>
-            <span class="brand-title">GeneaQuilt</span>
-            <span class="lede">A calmer way to see a complicated family.</span>
-          </span>
-        </a>
-        <nav class="appearance-controls" aria-label="Site and appearance">
-          <a class="button header-link" href="/">Open the quilt</a>
-          <button
-            class="button icon-button theme-toggle-button"
-            type="button"
-            aria-pressed="false"
-            aria-label="Switch to dark mode"
-          ></button>
-        </nav>
-      </header>
+      <div id="about-site-header"></div>
 
       <main id="about-content">
         <section id="overview" class="about-intro about-anchor" aria-labelledby="about-title">
@@ -302,6 +301,15 @@
                 </p>
               </div>
 
+              <a class="visualization-lab-link" href="/visualizations.html">
+                <span>Interactive comparison</span>
+                <strong>Judge 24 code-drawn methods on the same family</strong>
+                <small
+                  >Ore and p-graphs, Dual Trees, every algorithm evaluated in the 2025 thesis,
+                  GeneaQuilt, TimeNets, pedigrees, fan charts, H-trees, and more.</small
+                >
+              </a>
+
               <div class="visualization-list" aria-label="Family tree visualization comparison">
                 <article class="featured-method">
                   <div class="visualization-method">
@@ -508,7 +516,10 @@
                     <h3>Move around</h3>
                   </div>
                   <div class="tool-band-copy">
-                    <p><strong>Drag</strong> the quilt to pan; scroll or pinch to zoom.</p>
+                    <p>
+                      <strong>Drag or two-finger scroll</strong> to pan; pinch or use the zoom
+                      controls to zoom.
+                    </p>
                     <p><strong>Fit</strong> brings the full tree back into view.</p>
                     <p>
                       <strong>Overview</strong> shows where you are;
@@ -1106,10 +1117,17 @@
                   >
                   <a
                     class="external"
-                    href="https://www.researchgate.net/publication/228978452_Relinking_marriages_in_genealogies"
+                    href="https://www.dlib.si/details/URN%3ANBN%3ASI%3Adoc-7VRCE0CW"
                     target="_blank"
                     rel="noreferrer"
                     >P-graphs and relinking marriages paper</a
+                  >
+                  <a
+                    class="external"
+                    href="https://idl.uw.edu/papers/timenets"
+                    target="_blank"
+                    rel="noreferrer"
+                    >TimeNets research page and paper</a
                   >
                   <a
                     class="external"

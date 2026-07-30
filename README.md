@@ -1,114 +1,91 @@
-# GeneaQuilt Web Port
+# GeneaQuilt
 
-GeneaQuilt Web is a browser-first implementation of the GeneaQuilt genealogy visualization technique. It reads GEDCOM data, lays out people and families as an interactive quilt, and provides search, timeline, minimap, selection, focus, rotation, and export tools in a modern web interface.
+GeneaQuilt is a private, browser-first workspace for understanding GEDCOM family tree files through several accurate visualization methods. It helps a newcomer open a genealogy, understand its structure, choose an appropriate view, and explore or compare it without uploading family data to a server.
 
-This project builds on the ideas from the original Java GeneaQuilt application: <https://github.com/jdfekete/geneaquilt>.
+The project builds on the original Java [GeneaQuilts application](https://github.com/jdfekete/geneaquilt) by Jean-Daniel Fekete, Pierre Dragicevic, and INRIA. GeneaQuilt remains the leading method for a coherent Whole-dataset View of very large genealogies, while the workspace also includes focused, chronological, print-oriented, graph, and rooted-tree methods with candid limitations.
 
-## Why GeneaQuilt
+## What the site does
 
-Traditional family trees become hard to read when a genealogy includes many siblings, remarriages, large branches, or overlapping generations. GeneaQuilt uses a matrix-like layout instead:
+- Opens and analyzes GEDCOM files locally in a browser worker.
+- Starts with a documented 58-person Projection from Adam through Ya'akov's children.
+- Explains counts, disconnected groups, generation shape, sibling groups, remarriage, half-siblings, Pedigree Collapse, Reconvergence, dates, and relationship problems.
+- Recommends methods with plain-language reasons, then requires the user to choose one before Interactive Mode.
+- Provides twenty-four reviewed Native Visualizations behind isolated Adapters.
+- Compares two live methods on the same Avraham three-generation descendant sample, using A/B switching on mobile.
+- Keeps optional Local Trees in IndexedDB with open, rename, export, and individual permanent deletion.
+- Produces attributed PNG, current-view PDF, complete-diagram PDF, print, and Tiled Poster PDF output locally. GeneaQuilt also supports standalone interactive HTML for a user's own tree.
 
-- people and families are represented as two connected vertex types
-- generations are arranged into readable bands
-- relationship links stay compact instead of becoming a sprawling tree
-- dense genealogies can be scanned through overview, timeline, search, and focus controls
-- selection and tracing reveal parents, spouses, children, predecessors, and successors without redrawing the whole structure
+GEDCOM is a family tree file format. GeneaQuilt reads it; it does not edit the user's source genealogy in this iteration.
 
-The result is especially useful when the question is not just "who is this person's parent?", but "how does this whole family network fit together?"
+## Privacy boundary
 
-## Strengths of this web port
+GeneaQuilt has no accounts, server-side genealogy processing, hosted sharing, or synchronization. Chosen GEDCOM files stay on the device unless the user explicitly exports or shares a local file.
 
-The original project is a Java/Swing and Piccolo2D desktop application. This port keeps the core visualization model but reshapes the implementation for the browser.
+The creator-owned Source GEDCOM for Adam HaRishon's Tree is not shipped by the website and cannot be exported from its interface. The public app contains a smaller method-neutral visualization document without notes, source records, custom properties, media, or the Source GEDCOM text. Charts and reports derived from that built-in tree include its title, creator credit, version, and GeneaQuilt attribution.
 
-- Browser-native use: run the viewer locally in a web browser without a Java desktop app shell.
-- Rust/Wasm core: GEDCOM parsing, graph modeling, search, timeline summaries, DOI/focus logic, and layout live in deterministic Rust crates with a thin WebAssembly bridge.
-- Modern interaction surface: Canvas rendering supports pan, zoom, rotation, minimap navigation, search highlighting, selection details, timeline brushing, focus isolation, and Bring-and-Slide navigation.
-- Cleaner architecture: domain data, layout computation, Wasm bindings, and UI rendering are separated instead of coupling graph objects directly to scene-graph nodes.
-- Export workflow: the web UI can export an interactive HTML snapshot or open a print/PDF-ready view.
-- Testable modules: layout, focus, app-state, gesture, and graph behavior are covered through Rust and JavaScript tests rather than being embedded only in desktop UI behavior.
-- Web product UI: file loading, controls, details, timeline, and export actions are organized as a practical browser workspace with light and dark themes.
+## Architecture
 
-## What carries over from the original
+- `crates/geneaquilt-core`: GEDCOM parsing and preservation, binary Family validation, graph semantics, Tree Analysis, search, selection, and timeline data
+- `crates/geneaquilt-layout`: deterministic GeneaQuilt ranking, ordering, and layout audits
+- `crates/geneaquilt-wasm`: thin browser bridge to the Rust engine
+- `web/src/workspace`: home, Local Trees, required Method selection, Interactive Mode, and export orchestration
+- `web/src/recommendations`: deterministic document- and goal-specific Method Recommendations
+- `web/src/visualizations`: Registry, typed Adapter Interface, fidelity evidence, ratings, performance records, and isolated Method Implementations
+- `web/src/comparison`: live A/B Comparison View and complete rating table
+- `web/src/workers`: off-main-thread GEDCOM validation and Tree Analysis
+- `web/src/exports`: attributed PDF and poster generation
 
-The original GeneaQuilt README describes the technique as a diagonally-filled matrix for large genealogies, with overview, timeline, search/filtering, and Bring-and-Slide interaction. Those are the important ideas preserved here.
+Visualization Methods share the canonical Genealogy Document, theme tokens, and host behavior. They do not share algorithm-specific geometry.
 
-This repository does not attempt to port Swing menus, Piccolo2D node classes, Eclipse project setup, or the Graphviz subprocess fallback directly. Those were useful for the Java desktop implementation, but they are not the right boundaries for a web application.
+The accepted product behavior is in [docs/product-direction.md](docs/product-direction.md), the current architecture is summarized in [docs/architecture-summary.md](docs/architecture-summary.md), and durable decisions are in [docs/adr](docs/adr).
 
-## Repository layout
+## Local setup
 
-- `package.json`: npm workspace definition and the contributor-facing command surface
-- `Cargo.toml`: Rust workspace definition for the engine and WebAssembly crates
-- `crates/geneaquilt-core`: GEDCOM parsing, graph model, selection, DOI/focus, search, and timeline logic
-- `crates/geneaquilt-layout`: generation ranking, ordering, layout auditing, and packed quilt layout output
-- `crates/geneaquilt-wasm`: WebAssembly bridge exposed to the browser
-- `web/`: Vite browser app, Canvas renderer, controls, timeline, minimap, export, and UI state
-- `scripts/`: portable repository automation used by the npm workspaces
-- `docs/architecture.md`: design rationale for the browser/Rust split
-- `docs/source-mapping.md`: mapping from original Java concepts to this repo's modules
+Prerequisites:
 
-The repository root is the control center for both ecosystems. Contributors can use npm and Cargo without moving into a subdirectory.
-
-## Prerequisites
-
-- Node.js `20.19+`, `22.13+`, or `24+`; Node.js 22 LTS is recommended and recorded in `.nvmrc`
+- Node.js `20.19+`, `22.13+`, or `24+`; Node.js 22 LTS is recommended by `.nvmrc`
 - npm 9 or newer
-- the stable Rust toolchain
-- [`wasm-pack`](https://rustwasm.github.io/wasm-pack/installer/) for development and full builds
+- the stable Rust toolchain with rustfmt and Clippy
+- [`wasm-pack`](https://rustwasm.github.io/wasm-pack/installer/) for Wasm changes and the full local build
 
-## Quick start
+Install dependencies and start Vite:
 
 ```sh
 npm install
 npm run dev
 ```
 
-Open <http://localhost:5173>. The development command rebuilds the Rust WebAssembly package first and then starts Vite.
+Open the `Local` URL printed by Vite, normally <http://localhost:5173>. Any `Network` URLs are optional addresses for testing the same local server from another device on the network.
 
-For a production build:
+## Local commands
 
-```sh
-npm run build
-```
+| Command                    | Purpose                                                                         |
+| -------------------------- | ------------------------------------------------------------------------------- |
+| `npm run dev`              | Rebuild Wasm locally, then start Vite                                           |
+| `npm run build`            | Rebuild Wasm locally, then create the production web build                      |
+| `npm run build:wasm`       | Regenerate the committed browser package in `web/pkg`                           |
+| `npm run build:cloudflare` | Build the static Vite site from the committed Wasm package                      |
+| `npm run preview`          | Preview the latest production build locally                                     |
+| `npm run benchmark:scale`  | Reproduce the deterministic visualization scale baseline                        |
+| `npm test`                 | Run the web and Rust test suites locally                                        |
+| `npm run lint`             | Run ESLint and Clippy locally, with warnings denied                             |
+| `npm run format:check`     | Verify JavaScript, TypeScript, CSS, JSON, Markdown, and Rust formatting locally |
+| `npm run check`            | Run formatting, types, lint, tests, and the deployable static build locally     |
 
-The generated Wasm package is written to `web/pkg`. This directory is committed so hosts without Rust, Cargo, or `wasm-pack` can still build the static Vite site.
+The project does not depend on GitHub Actions. The repository's authoritative verification command is `npm run check` on the contributor's computer.
 
-## Commands
+## Static deployment
 
-| Command                    | Purpose                                                             |
-| -------------------------- | ------------------------------------------------------------------- |
-| `npm run dev`              | Rebuild Wasm and start Vite                                         |
-| `npm run build`            | Rebuild Wasm and create a production build                          |
-| `npm run build:wasm`       | Regenerate `web/pkg`                                                |
-| `npm run build:cloudflare` | Build the web app from the committed Wasm package                   |
-| `npm run preview`          | Preview the production build locally                                |
-| `npm test`                 | Run the JavaScript and Rust test suites                             |
-| `npm run lint`             | Run ESLint and Clippy across both workspaces                        |
-| `npm run format`           | Format JavaScript/CSS with Prettier and Rust with rustfmt           |
-| `npm run check`            | Run formatting checks, linting, tests, and the deployable web build |
+`web/pkg` is committed so a static host can build the Vite app without installing Rust. After changing `crates/geneaquilt-wasm` or its Rust dependencies, run `npm run build:wasm` locally and include the regenerated files.
 
-The root npm workspace forwards web commands to `geneaquilt-web`; direct commands such as `cargo test`, `cargo fmt`, and `cargo clippy` continue to work normally.
+Cloudflare Pages uses:
 
-## Cloudflare Pages
+- root directory: repository root
+- build command: `npm run build:cloudflare`
+- output directory: `web/dist`
 
-Use these build settings:
-
-- Framework preset: `Vite` if available, otherwise `None`
-- Root directory: the repository root
-- Build command: `npm run build:cloudflare`
-- Build output directory: `web/dist`
-
-Cloudflare installs the root npm workspace and does not need Rust or `wasm-pack`. Before committing changes that affect `crates/geneaquilt-wasm` or its dependencies, run `npm run build:wasm` locally and commit the updated `web/pkg` files. Cloudflare then runs Vite against that prebuilt package.
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for environment setup, the complete command reference, WebAssembly regeneration rules, and pull request guidance.
+This deployment serves only static files. All genealogy computation still happens in the visitor's browser.
 
 ## License and attribution
 
-This project is available under the [BSD 3-Clause License](LICENSE). It is a browser-first port of the ideas and behavior in the [original GeneaQuilts project](https://github.com/jdfekete/geneaquilt) by Jean-Daniel Fekete, Pierre Dragicevic, and INRIA; their copyright notice is retained in the license.
-
-## Current status
-
-The app can load GEDCOM text or files, build a quilt layout, inspect people and families, search across names and file details, brush timeline ranges, focus selections, rotate/fit/zoom the canvas, and export snapshots.
-
-The implementation is still a port, not a claim of full feature parity with every behavior of the original Java application. The emphasis is on preserving the useful visualization model while making the system easier to run, test, maintain, and evolve as a web product.
+This project is available under the [BSD 3-Clause License](LICENSE). The original GeneaQuilts copyright notice is retained in the license.

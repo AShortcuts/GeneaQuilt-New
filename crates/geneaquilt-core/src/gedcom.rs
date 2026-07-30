@@ -2,8 +2,8 @@ use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
 
 use crate::graph::GeneaGraph;
-use crate::model::{Family, Person};
-use crate::timeline::DateRange;
+use crate::model::{Family, ParentFamilyLink, Person};
+use crate::timeline::{DateRange, parse_recorded_date};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GedcomError {
@@ -23,11 +23,11 @@ impl Display for GedcomError {
 impl std::error::Error for GedcomError {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct GedcomLine {
-    level: usize,
-    xref: Option<String>,
-    tag: String,
-    value: String,
+pub(crate) struct GedcomLine {
+    pub(crate) level: usize,
+    pub(crate) xref: Option<String>,
+    pub(crate) tag: String,
+    pub(crate) value: String,
 }
 
 enum CurrentRecord {
@@ -42,6 +42,7 @@ pub fn parse_gedcom(source: &str) -> Result<GeneaGraph, GedcomError> {
     let mut seen_ids = HashSet::<String>::new();
     let mut current = None::<CurrentRecord>;
     let mut current_event = None::<String>;
+    let mut current_parent_family = None::<usize>;
 
     for raw in source.lines() {
         let line = raw.trim();
@@ -53,6 +54,7 @@ pub fn parse_gedcom(source: &str) -> Result<GeneaGraph, GedcomError> {
 
         if parsed.level == 0 {
             current_event = None;
+            current_parent_family = None;
             current = match (parsed.xref.as_deref(), parsed.tag.as_str()) {
                 (Some(id), "INDI") => {
                     let id = id.to_string();
@@ -78,7 +80,12 @@ pub fn parse_gedcom(source: &str) -> Result<GeneaGraph, GedcomError> {
         match current {
             Some(CurrentRecord::Person(index)) => {
                 let person = &mut people[index];
-                apply_person_line(person, &parsed, &mut current_event);
+                apply_person_line(
+                    person,
+                    &parsed,
+                    &mut current_event,
+                    &mut current_parent_family,
+                );
             }
             Some(CurrentRecord::Family(index)) => {
                 let family = &mut families[index];
@@ -91,7 +98,7 @@ pub fn parse_gedcom(source: &str) -> Result<GeneaGraph, GedcomError> {
     build_graph(people, families)
 }
 
-fn parse_line(line: &str) -> Result<GedcomLine, GedcomError> {
+pub(crate) fn parse_line(line: &str) -> Result<GedcomLine, GedcomError> {
     let mut parts = line.split_whitespace();
     let level = parts
         .next()
@@ -121,7 +128,12 @@ fn parse_line(line: &str) -> Result<GedcomLine, GedcomError> {
     })
 }
 
-fn apply_person_line(person: &mut Person, line: &GedcomLine, current_event: &mut Option<String>) {
+fn apply_person_line(
+    person: &mut Person,
+    line: &GedcomLine,
+    current_event: &mut Option<String>,
+    current_parent_family: &mut Option<usize>,
+) {
     match (line.level, line.tag.as_str()) {
         (1, "NAME") => {
             push_property(&mut person.properties, "NAME", &line.value);
@@ -136,6 +148,7 @@ fn apply_person_line(person: &mut Person, line: &GedcomLine, current_event: &mut
                 push_property(&mut person.properties, "NAME.SURN", &value);
             }
             *current_event = None;
+            *current_parent_family = None;
         }
         (1, "SEX") => {
             if !line.value.is_empty() {
@@ -143,13 +156,38 @@ fn apply_person_line(person: &mut Person, line: &GedcomLine, current_event: &mut
                 push_property(&mut person.properties, "SEX", &line.value);
             }
             *current_event = None;
+            *current_parent_family = None;
         }
         (1, "FAMC") => {
             if !line.value.is_empty() && !person.famc.contains(&line.value) {
                 person.famc.push(line.value.clone());
                 push_property(&mut person.properties, "FAMC", &line.value);
+                person.parent_family_links.push(ParentFamilyLink {
+                    family_id: line.value.clone(),
+                    pedigree: None,
+                });
+                *current_parent_family = Some(person.parent_family_links.len() - 1);
+            } else if !line.value.is_empty() {
+                *current_parent_family = person
+                    .parent_family_links
+                    .iter()
+                    .position(|link| link.family_id == line.value);
             }
             *current_event = None;
+        }
+        (2, "PEDI") => {
+            if let Some(index) = *current_parent_family
+                && !line.value.is_empty()
+            {
+                person.parent_family_links[index].pedigree = Some(line.value.clone());
+                push_property(
+                    &mut person.properties,
+                    &format!("FAMC.{}.PEDI", person.parent_family_links[index].family_id),
+                    &line.value,
+                );
+            } else if !line.value.is_empty() {
+                push_property(&mut person.properties, "PEDI", &line.value);
+            }
         }
         (1, "FAMS") => {
             if !line.value.is_empty() && !person.fams.contains(&line.value) {
@@ -157,18 +195,26 @@ fn apply_person_line(person: &mut Person, line: &GedcomLine, current_event: &mut
                 push_property(&mut person.properties, "FAMS", &line.value);
             }
             *current_event = None;
+            *current_parent_family = None;
         }
         (1, "BIRT" | "DEAT" | "CHR" | "BURI") => {
             if !line.value.is_empty() {
                 push_property(&mut person.properties, &line.tag, &line.value);
             }
             *current_event = Some(line.tag.clone());
+            *current_parent_family = None;
         }
         (2, "DATE") => {
             if let Some(event) = current_event.as_deref() {
                 let key = format!("{event}.DATE");
                 push_property(&mut person.properties, &key, &line.value);
                 union_date(&mut person.date_range, parse_year_range(&line.value));
+                let recorded = parse_recorded_date(&line.value);
+                match event {
+                    "BIRT" if person.birth_date.is_none() => person.birth_date = recorded,
+                    "DEAT" if person.death_date.is_none() => person.death_date = recorded,
+                    _ => {}
+                }
             }
         }
         (level, _) if level >= 1 => {
@@ -186,6 +232,7 @@ fn apply_person_line(person: &mut Person, line: &GedcomLine, current_event: &mut
             }
             if line.level == 1 {
                 *current_event = None;
+                *current_parent_family = None;
             }
         }
         _ => {}
@@ -196,14 +243,18 @@ fn apply_family_line(family: &mut Family, line: &GedcomLine, current_event: &mut
     match (line.level, line.tag.as_str()) {
         (1, "HUSB") => {
             if !line.value.is_empty() {
-                family.husb = Some(line.value.clone());
+                if family.husb.is_none() {
+                    family.husb = Some(line.value.clone());
+                }
                 push_property(&mut family.properties, "HUSB", &line.value);
             }
             *current_event = None;
         }
         (1, "WIFE") => {
             if !line.value.is_empty() {
-                family.wife = Some(line.value.clone());
+                if family.wife.is_none() {
+                    family.wife = Some(line.value.clone());
+                }
                 push_property(&mut family.properties, "WIFE", &line.value);
             }
             *current_event = None;
@@ -215,7 +266,7 @@ fn apply_family_line(family: &mut Family, line: &GedcomLine, current_event: &mut
             }
             *current_event = None;
         }
-        (1, "MARR") => {
+        (1, "MARR" | "DIV") => {
             if !line.value.is_empty() {
                 push_property(&mut family.properties, "MARR", &line.value);
             }
@@ -226,6 +277,12 @@ fn apply_family_line(family: &mut Family, line: &GedcomLine, current_event: &mut
                 let key = format!("{event}.DATE");
                 push_property(&mut family.properties, &key, &line.value);
                 union_date(&mut family.date_range, parse_year_range(&line.value));
+                let recorded = parse_recorded_date(&line.value);
+                match event {
+                    "MARR" if family.marriage_date.is_none() => family.marriage_date = recorded,
+                    "DIV" if family.divorce_date.is_none() => family.divorce_date = recorded,
+                    _ => {}
+                }
             }
         }
         (level, _) if level >= 1 => {
@@ -405,7 +462,7 @@ fn parse_year_range(value: &str) -> Option<DateRange> {
 
 #[cfg(test)]
 mod tests {
-    use crate::timeline::DateRange;
+    use crate::timeline::{DatePrecision, DateRange};
 
     use super::parse_gedcom;
 
@@ -536,6 +593,66 @@ mod tests {
                 start_year: 3406,
                 end_year: 3406,
             })
+        );
+    }
+
+    #[test]
+    fn keeps_person_and_family_event_dates_distinct() {
+        let gedcom = r#"
+0 @I1@ INDI
+1 NAME Person /One/
+1 BIRT
+2 DATE ABT 1900
+1 DEAT
+2 DATE AFT 1970
+0 @I2@ INDI
+1 NAME Person /Two/
+0 @F1@ FAM
+1 HUSB @I1@
+1 WIFE @I2@
+1 MARR
+2 DATE 1 JAN 1925
+1 DIV
+2 DATE BET 1940 AND 1942
+"#;
+
+        let graph = parse_gedcom(gedcom).expect("gedcom should parse");
+        let person = graph
+            .person(
+                graph
+                    .vertex_id_by_external_id("@I1@")
+                    .expect("person should exist"),
+            )
+            .expect("vertex should be a person");
+        let family = graph
+            .family(
+                graph
+                    .vertex_id_by_external_id("@F1@")
+                    .expect("family should exist"),
+            )
+            .expect("vertex should be a family");
+
+        assert_eq!(
+            person.birth_date.as_ref().map(|date| date.precision),
+            Some(DatePrecision::Approximate)
+        );
+        assert_eq!(
+            person.death_date.as_ref().map(|date| date.precision),
+            Some(DatePrecision::After)
+        );
+        assert_eq!(
+            family
+                .marriage_date
+                .as_ref()
+                .map(|date| date.original_text.as_str()),
+            Some("1 JAN 1925")
+        );
+        assert_eq!(
+            family
+                .divorce_date
+                .as_ref()
+                .map(|date| (date.start_year, date.end_year)),
+            Some((Some(1940), Some(1942)))
         );
     }
 }

@@ -15,12 +15,19 @@
     "dev": "npm run build:wasm && vite",
     "build": "npm run build:wasm && vite build",
     "preview": "vite preview",
-    "test": "node --test",
+    "test": "npm run test:typescript",
+    "test:typescript": "node --import tsx --test",
+    "benchmark:scale": "node --import tsx src/performance/runScaleBenchmarks.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.worker.json && tsc --noEmit -p tsconfig.test.json && tsc --noEmit -p tsconfig.benchmark.json",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
   "devDependencies": {
+    "typescript": "^7.0.2",
     "vite": "^7.3.6"
+  },
+  "dependencies": {
+    "pdf-lib": "^1.17.1"
   }
 }

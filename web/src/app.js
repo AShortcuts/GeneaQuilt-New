@@ -255,7 +255,7 @@ export async function createApp() {
         </details>
         <div class="stage-shell">
           <canvas class="quilt-canvas"></canvas>
-          <div class="stage-hint">Drag to move <span>·</span> Scroll to zoom <span>·</span> Select a name for details</div>
+          <div class="stage-hint">Drag or two-finger scroll to move <span>·</span> Pinch or use + / − to zoom <span>·</span> Select a name for details</div>
           <div class="minimap-shell">
             <div class="minimap-label">Overview</div>
             <canvas class="minimap-canvas"></canvas>

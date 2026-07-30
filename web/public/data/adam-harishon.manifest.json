@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "documentId": "adam-harishon",
+  "title": "Adam HaRishon's Tree",
+  "version": "2026-07-21+b0a90c4",
+  "source": {
+    "format": "GEDCOM 5.5.1",
+    "producer": "MacFamilyTree 11.2.3",
+    "sha256": "b0a90c44284ef9acf89db63387814bf6be5d90538e2a5c37da82df7122699dcf",
+    "includedInWebsite": false
+  },
+  "creator": {
+    "credit": "Adam HaRishon's Tree — creator-supplied genealogy",
+    "creditIsProvisional": true,
+    "requestEmail": null
+  },
+  "anchors": {
+    "adamPersonId": "@73594872@",
+    "avrahamPersonId": "@38103754@",
+    "yaakovPersonId": "@88484800@"
+  },
+  "homeProjection": {
+    "id": "adam-to-yaakov-and-children",
+    "people": 58,
+    "families": 23,
+    "rule": "The shortest recorded lineage from Adam to Ya'akov, including the spouse in each lineage Family, then every recorded spouse and child Family of Ya'akov. Ya'akov's children are the terminal generation; no grandchild Families are included."
+  },
+  "publicArtifact": {
+    "path": "/data/adam-harishon.document.json",
+    "containsSourceGedcom": false,
+    "containsNotes": false,
+    "containsMedia": false,
+    "containsVisualizationRecords": true
+  },
+  "exportPolicy": {
+    "sourceGedcom": false,
+    "standaloneInteractiveHtml": false,
+    "charts": true,
+    "reports": true,
+    "images": true,
+    "pdf": true,
+    "tiledPosterPdf": true
+  }
+}

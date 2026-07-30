@@ -1,7 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
 use geneaquilt_core::{
-    Family, GeneaGraph, Person, VertexRecord, compute_selection_doi, parse_gedcom, trace,
+    DocumentAnalysis, DocumentCommand, Family, GedcomVersion, GeneaGraph, GenealogyDocument,
+    Person, PersonInput, SourceProfile, VertexRecord, analyze_document, build_canonical_document,
+    compute_selection_doi, parse_gedcom, profile_gedcom, trace,
 };
 use geneaquilt_core::{
     HighlightMode, SelectionState,
@@ -243,9 +245,114 @@ pub fn engine_status_json() -> String {
 }
 
 #[wasm_bindgen]
+pub fn analyze_gedcom_json(source: &str) -> Result<String, JsValue> {
+    let graph = parse_gedcom(source).map_err(|error| JsValue::from_str(&error.to_string()))?;
+    serde_json::to_string(&analyze_document(&graph))
+        .map_err(|error| JsValue::from_str(&format!("analysis serialization failed: {error}")))
+}
+
+#[wasm_bindgen]
+pub fn canonical_document_json(source: &str) -> Result<String, JsValue> {
+    let source_profile =
+        profile_gedcom(source).map_err(|error| JsValue::from_str(&error.to_string()))?;
+    let graph = parse_gedcom(source).map_err(|error| JsValue::from_str(&error.to_string()))?;
+    serde_json::to_string(&build_canonical_document(&graph, source_profile)).map_err(|error| {
+        JsValue::from_str(&format!("canonical document serialization failed: {error}"))
+    })
+}
+
+#[wasm_bindgen]
+pub struct GenealogyDocumentEngine {
+    document: GenealogyDocument,
+}
+
+#[wasm_bindgen]
+impl GenealogyDocumentEngine {
+    #[wasm_bindgen(constructor)]
+    pub fn new(source: &str) -> Result<GenealogyDocumentEngine, JsValue> {
+        let document = GenealogyDocument::import(source)
+            .map_err(|error| JsValue::from_str(&error.to_string()))?;
+        Ok(Self { document })
+    }
+
+    pub fn create(first_person_json: &str) -> Result<GenealogyDocumentEngine, JsValue> {
+        let first_person = serde_json::from_str::<PersonInput>(first_person_json)
+            .map_err(|error| JsValue::from_str(&format!("invalid first Person Record: {error}")))?;
+        let document = GenealogyDocument::create(first_person)
+            .map_err(|error| JsValue::from_str(&error.to_string()))?;
+        Ok(Self { document })
+    }
+
+    pub fn snapshot_json(&self) -> Result<String, JsValue> {
+        let snapshot = self
+            .document
+            .snapshot()
+            .map_err(|error| JsValue::from_str(&error.to_string()))?;
+        serde_json::to_string(&snapshot)
+            .map_err(|error| JsValue::from_str(&format!("snapshot serialization failed: {error}")))
+    }
+
+    pub fn person_json(&self, person_id: &str) -> Result<String, JsValue> {
+        let person = self
+            .document
+            .person(person_id)
+            .map_err(|error| JsValue::from_str(&error.to_string()))?;
+        serde_json::to_string(&person).map_err(|error| {
+            JsValue::from_str(&format!("Person Record serialization failed: {error}"))
+        })
+    }
+
+    pub fn apply_command_json(
+        &mut self,
+        command_json: &str,
+        expected_revision: u32,
+    ) -> Result<String, JsValue> {
+        let command = serde_json::from_str::<DocumentCommand>(command_json)
+            .map_err(|error| JsValue::from_str(&format!("invalid genealogy edit: {error}")))?;
+        let snapshot = self
+            .document
+            .apply(command, u64::from(expected_revision))
+            .map_err(|error| JsValue::from_str(&error.to_string()))?;
+        serde_json::to_string(&snapshot)
+            .map_err(|error| JsValue::from_str(&format!("snapshot serialization failed: {error}")))
+    }
+
+    pub fn undo_json(&mut self, expected_revision: u32) -> Result<String, JsValue> {
+        let snapshot = self
+            .document
+            .undo(u64::from(expected_revision))
+            .map_err(|error| JsValue::from_str(&error.to_string()))?;
+        serde_json::to_string(&snapshot)
+            .map_err(|error| JsValue::from_str(&format!("snapshot serialization failed: {error}")))
+    }
+
+    pub fn redo_json(&mut self, expected_revision: u32) -> Result<String, JsValue> {
+        let snapshot = self
+            .document
+            .redo(u64::from(expected_revision))
+            .map_err(|error| JsValue::from_str(&error.to_string()))?;
+        serde_json::to_string(&snapshot)
+            .map_err(|error| JsValue::from_str(&format!("snapshot serialization failed: {error}")))
+    }
+
+    pub fn export_json(&self, version: &str) -> Result<String, JsValue> {
+        let version =
+            GedcomVersion::parse(version).map_err(|error| JsValue::from_str(&error.to_string()))?;
+        let export = self
+            .document
+            .export(version)
+            .map_err(|error| JsValue::from_str(&error.to_string()))?;
+        serde_json::to_string(&export)
+            .map_err(|error| JsValue::from_str(&format!("export serialization failed: {error}")))
+    }
+}
+
+#[wasm_bindgen]
 pub struct GeneaQuiltEngine {
     graph: GeneaGraph,
     layout: LayoutState,
+    analysis: DocumentAnalysis,
+    source_profile: SourceProfile,
 }
 
 #[wasm_bindgen]
@@ -256,14 +363,39 @@ impl GeneaQuiltEngine {
     }
 
     pub fn with_ranker(source: &str, ranker: &str) -> Result<GeneaQuiltEngine, JsValue> {
+        let source_profile =
+            profile_gedcom(source).map_err(|error| JsValue::from_str(&error.to_string()))?;
         let graph = parse_gedcom(source).map_err(|error| JsValue::from_str(&error.to_string()))?;
+        let analysis = analyze_document(&graph);
+        if analysis.blocks_interactive {
+            return Err(JsValue::from_str(
+                "This GEDCOM has blocking relationship errors. Review Tree Analysis before opening Interactive Mode.",
+            ));
+        }
         let mut layout = match parse_ranker(ranker).map_err(JsValue::from_str)? {
             RankerStrategy::Original => assign_layers(&graph),
             RankerStrategy::V2 => assign_layers_v2(&graph),
         };
         order_layers(&graph, &mut layout);
 
-        Ok(Self { graph, layout })
+        Ok(Self {
+            graph,
+            layout,
+            analysis,
+            source_profile,
+        })
+    }
+
+    pub fn analysis_json(&self) -> String {
+        serde_json::to_string(&self.analysis).expect("document analysis should serialize")
+    }
+
+    pub fn canonical_document_json(&self) -> String {
+        serde_json::to_string(&build_canonical_document(
+            &self.graph,
+            self.source_profile.clone(),
+        ))
+        .expect("canonical document should serialize")
     }
 
     pub fn summary_json(&self) -> String {
@@ -1514,10 +1646,8 @@ mod tests {
 1 CHIL @I4@
 "#;
 
-        let graph = parse_gedcom(gedcom).expect("gedcom should parse");
-        let mut layout = assign_layers(&graph);
-        order_layers(&graph, &mut layout);
-        let engine = super::GeneaQuiltEngine { graph, layout };
+        let engine =
+            super::GeneaQuiltEngine::with_ranker(gedcom, "original").expect("engine should build");
 
         let left = engine
             .bring_and_slide_json("@I3@", "left")
@@ -1675,10 +1805,8 @@ mod tests {
 0 @F1@ FAM
 "#;
 
-        let graph = parse_gedcom(gedcom).expect("gedcom should parse");
-        let mut layout = assign_layers(&graph);
-        order_layers(&graph, &mut layout);
-        let engine = super::GeneaQuiltEngine { graph, layout };
+        let engine =
+            super::GeneaQuiltEngine::with_ranker(gedcom, "original").expect("engine should build");
 
         assert!(
             engine

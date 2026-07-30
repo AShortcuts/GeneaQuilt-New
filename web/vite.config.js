@@ -7,6 +7,7 @@ export default defineConfig({
       input: {
         main: resolve(import.meta.dirname, "index.html"),
         about: resolve(import.meta.dirname, "about.html"),
+        visualizations: resolve(import.meta.dirname, "visualizations.html"),
       },
     },
   },

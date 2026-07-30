@@ -4,7 +4,9 @@
 export class GeneaQuiltEngine {
     free(): void;
     [Symbol.dispose](): void;
+    analysis_json(): string;
     bring_and_slide_json(external_id: string, direction: string): string;
+    canonical_document_json(): string;
     doi_json(external_id: string, mode: string): string;
     highlight_summary_json(external_ids_json: string, mode: string): string;
     interaction_json(external_id: string, mode: string): string;
@@ -19,32 +21,62 @@ export class GeneaQuiltEngine {
     static with_ranker(source: string, ranker: string): GeneaQuiltEngine;
 }
 
+export class GenealogyDocumentEngine {
+    free(): void;
+    [Symbol.dispose](): void;
+    apply_command_json(command_json: string, expected_revision: number): string;
+    static create(first_person_json: string): GenealogyDocumentEngine;
+    export_json(version: string): string;
+    constructor(source: string);
+    person_json(person_id: string): string;
+    redo_json(expected_revision: number): string;
+    snapshot_json(): string;
+    undo_json(expected_revision: number): string;
+}
+
+export function analyze_gedcom_json(source: string): string;
+
+export function canonical_document_json(source: string): string;
+
 export function engine_status_json(): string;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
-    readonly engine_status_json: () => [number, number];
+    readonly __wbg_genealogydocumentengine_free: (a: number, b: number) => void;
     readonly __wbg_geneaquiltengine_free: (a: number, b: number) => void;
-    readonly geneaquiltengine_new: (a: number, b: number) => [number, number, number];
-    readonly geneaquiltengine_with_ranker: (a: number, b: number, c: number, d: number) => [number, number, number];
-    readonly geneaquiltengine_summary_json: (a: number) => [number, number];
-    readonly geneaquiltengine_scene_json: (a: number) => [number, number];
-    readonly geneaquiltengine_doi_json: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
-    readonly geneaquiltengine_search_json: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
-    readonly geneaquiltengine_vertex_details_json: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly analyze_gedcom_json: (a: number, b: number) => [number, number, number, number];
+    readonly canonical_document_json: (a: number, b: number) => [number, number, number, number];
+    readonly engine_status_json: () => [number, number];
+    readonly genealogydocumentengine_apply_command_json: (a: number, b: number, c: number, d: number) => [number, number, number, number];
+    readonly genealogydocumentengine_create: (a: number, b: number) => [number, number, number];
+    readonly genealogydocumentengine_export_json: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly genealogydocumentengine_new: (a: number, b: number) => [number, number, number];
+    readonly genealogydocumentengine_person_json: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly genealogydocumentengine_redo_json: (a: number, b: number) => [number, number, number, number];
+    readonly genealogydocumentengine_snapshot_json: (a: number) => [number, number, number, number];
+    readonly genealogydocumentengine_undo_json: (a: number, b: number) => [number, number, number, number];
+    readonly geneaquiltengine_analysis_json: (a: number) => [number, number];
     readonly geneaquiltengine_bring_and_slide_json: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
+    readonly geneaquiltengine_canonical_document_json: (a: number) => [number, number];
+    readonly geneaquiltengine_doi_json: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
     readonly geneaquiltengine_highlight_summary_json: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
-    readonly geneaquiltengine_timeline_json: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number, number];
+    readonly geneaquiltengine_new: (a: number, b: number) => [number, number, number];
+    readonly geneaquiltengine_scene_json: (a: number) => [number, number];
+    readonly geneaquiltengine_search_json: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
+    readonly geneaquiltengine_summary_json: (a: number) => [number, number];
     readonly geneaquiltengine_timeline_focus_json: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
-    readonly geneaquiltengine_trace_json: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
+    readonly geneaquiltengine_timeline_json: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number, number];
+    readonly geneaquiltengine_vertex_details_json: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly geneaquiltengine_with_ranker: (a: number, b: number, c: number, d: number) => [number, number, number];
     readonly geneaquiltengine_interaction_json: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
+    readonly geneaquiltengine_trace_json: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
     readonly __wbindgen_externrefs: WebAssembly.Table;
-    readonly __wbindgen_free: (a: number, b: number, c: number) => void;
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
     readonly __externref_table_dealloc: (a: number) => void;
+    readonly __wbindgen_free: (a: number, b: number, c: number) => void;
     readonly __wbindgen_start: () => void;
 }
 

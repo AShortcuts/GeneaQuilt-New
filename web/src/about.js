@@ -1,6 +1,15 @@
 import { applyDocumentTheme, getInitialTheme } from "./theme.js";
+import { icon } from "./ui/icons.ts";
+import { siteHeader } from "./ui/siteHeader.ts";
 
-const themeToggle = document.querySelector(".theme-toggle-button");
+let theme = getInitialTheme();
+const siteHeaderMount = document.querySelector("#about-site-header");
+if (!siteHeaderMount) {
+  throw new Error("The About page is missing its site header mount point");
+}
+siteHeaderMount.outerHTML = siteHeader({ activePage: "about", theme });
+
+const themeToggle = document.querySelector(".site-theme-button");
 const progressBar = document.querySelector(".reading-progress");
 const backToTop = document.querySelector(".back-to-top");
 const mobileToc = document.querySelector(".mobile-toc");
@@ -8,7 +17,6 @@ const mobileTocCurrent = document.querySelector(".mobile-toc-current");
 const sections = [...document.querySelectorAll(".about-anchor")];
 const tocLinks = [...document.querySelectorAll("[data-section]")];
 const mobileTocLinks = [...document.querySelectorAll(".mobile-toc nav a")];
-const themeColor = document.querySelector('meta[name="theme-color"]');
 
 if (
   !themeToggle ||
@@ -16,31 +24,19 @@ if (
   !backToTop ||
   !mobileToc ||
   !mobileTocCurrent ||
-  !themeColor ||
   sections.length === 0
 ) {
   throw new Error("The About page is missing a required navigation element");
 }
 
-let theme = getInitialTheme();
 let updateQueued = false;
 
-function iconSvg(name) {
-  const paths = {
-    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
-    moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
-  };
-
-  return `<svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths[name]}</svg>`;
-}
-
-function applyTheme(nextTheme) {
-  theme = applyDocumentTheme(nextTheme);
+function applyTheme(nextTheme, persist = false) {
+  theme = applyDocumentTheme(nextTheme, { persist });
   const isDark = theme === "dark";
-  themeToggle.innerHTML = iconSvg(isDark ? "sun" : "moon");
-  themeToggle.setAttribute("aria-label", isDark ? "Switch to light mode" : "Switch to dark mode");
+  themeToggle.innerHTML = icon(isDark ? "sun" : "moon");
+  themeToggle.setAttribute("aria-label", isDark ? "Use light appearance" : "Use dark appearance");
   themeToggle.setAttribute("aria-pressed", String(isDark));
-  themeColor.setAttribute("content", isDark ? "#171a17" : "#f3eee5");
 }
 
 function activeSectionId() {
@@ -94,7 +90,7 @@ function queueScrollUiUpdate() {
 }
 
 themeToggle.addEventListener("click", () => {
-  applyTheme(theme === "dark" ? "light" : "dark");
+  applyTheme(theme === "dark" ? "light" : "dark", true);
 });
 
 backToTop.addEventListener("click", () => {

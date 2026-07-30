@@ -1,5 +1,6 @@
 import js from "@eslint/js";
 import globals from "globals";
+import tseslint from "typescript-eslint";
 
 export default [
   {
@@ -10,11 +11,27 @@ export default [
     ...js.configs.recommended,
     name: "geneaquilt/recommended",
   },
+  ...tseslint.configs.recommended,
   {
     name: "geneaquilt/browser",
     files: ["web/src/**/*.js"],
     languageOptions: {
       globals: globals.browser,
+    },
+  },
+  {
+    name: "geneaquilt/typescript-browser",
+    files: ["web/src/**/*.ts"],
+    ignores: ["web/src/workers/*.worker.ts"],
+    languageOptions: {
+      globals: globals.browser,
+    },
+  },
+  {
+    name: "geneaquilt/typescript-worker",
+    files: ["web/src/workers/*.worker.ts"],
+    languageOptions: {
+      globals: globals.worker,
     },
   },
   {

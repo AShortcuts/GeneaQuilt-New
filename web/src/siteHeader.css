@@ -1,0 +1,193 @@
+:root {
+  --site-header-height: 74px;
+  --site-header-bg: #f3eee5;
+  --site-header-ink: #28332c;
+  --site-header-muted: #697068;
+  --site-header-line: #d9d1c4;
+  --site-header-line-strong: #c6baa7;
+  --site-header-surface: #fffdf8;
+  --site-header-accent: #456755;
+  --site-header-accent-soft: #e4ece5;
+  --site-header-ochre: #a87032;
+  --site-header-rust: #b85e3f;
+}
+
+html[data-theme="dark"] {
+  --site-header-bg: #171a17;
+  --site-header-ink: #edf0e9;
+  --site-header-muted: #a8afa5;
+  --site-header-line: #394039;
+  --site-header-line-strong: #4b554a;
+  --site-header-surface: #20241f;
+  --site-header-accent: #91b29c;
+  --site-header-accent-soft: #29382f;
+  --site-header-ochre: #d2a362;
+  --site-header-rust: #e18868;
+}
+
+.workspace-page,
+.comparison-page,
+.about-page {
+  padding-top: var(--site-header-height);
+}
+
+.site-header {
+  position: fixed;
+  z-index: 100;
+  top: 0;
+  left: 0;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  width: 100%;
+  height: var(--site-header-height);
+  padding-inline: max(24px, calc((100vw - 1500px) / 2));
+  border-bottom: 1px solid color-mix(in srgb, var(--site-header-line) 84%, transparent);
+  background: color-mix(in srgb, var(--site-header-bg) 92%, transparent);
+  box-shadow: 0 8px 28px color-mix(in srgb, var(--site-header-ink) 7%, transparent);
+  backdrop-filter: blur(18px) saturate(1.12);
+}
+
+.site-header .site-brand {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: 12px;
+  width: max-content;
+  color: var(--site-header-ink);
+  font-family: Charter, "Iowan Old Style", Palatino, Baskerville, Georgia, serif;
+  font-size: 1.75rem;
+  font-weight: 650;
+  letter-spacing: -0.025em;
+  text-decoration: none;
+}
+
+.site-brand .brand-mark {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(2, 11px);
+  grid-template-rows: repeat(2, 11px);
+  gap: 3px;
+  width: 25px;
+  height: 25px;
+  flex: 0 0 25px;
+  transform: rotate(45deg);
+}
+
+.site-brand .brand-mark i {
+  display: block;
+  border-radius: 2px;
+  background: var(--site-header-accent);
+}
+
+.site-brand .brand-mark i:nth-child(2) {
+  background: var(--site-header-ochre);
+}
+
+.site-brand .brand-mark i:nth-child(3) {
+  background: var(--site-header-rust);
+}
+
+.site-brand .brand-mark i:nth-child(4) {
+  border: 1px solid var(--site-header-accent);
+  background: var(--site-header-accent-soft);
+}
+
+.site-header nav {
+  display: flex;
+  align-self: stretch;
+  align-items: center;
+  justify-content: center;
+  gap: 34px;
+}
+
+.site-header nav a {
+  display: grid;
+  height: 100%;
+  padding: 0;
+  place-items: center;
+  border-bottom: 3px solid transparent;
+  color: var(--site-header-muted);
+  font-size: 0.96rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.site-header nav a:hover,
+.site-header nav a:focus-visible,
+.site-header nav a[aria-current="page"] {
+  border-bottom-color: var(--site-header-accent);
+  color: var(--site-header-ink);
+}
+
+.site-theme-button {
+  display: inline-grid;
+  width: 42px;
+  height: 42px;
+  justify-self: end;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--site-header-line-strong);
+  border-radius: 10px;
+  color: var(--site-header-ink);
+  background: var(--site-header-surface);
+  cursor: pointer;
+}
+
+.site-theme-button:hover {
+  border-color: var(--site-header-accent);
+  background: var(--site-header-accent-soft);
+}
+
+.site-theme-button .icon {
+  width: 19px;
+  height: 19px;
+}
+
+@media (max-width: 760px) {
+  :root {
+    --site-header-height: 112px;
+  }
+
+  .site-header {
+    grid-template-columns: 1fr auto;
+    grid-template-rows: 64px 48px;
+    padding-inline: 14px;
+  }
+
+  .site-header .site-brand {
+    font-size: 1.5rem;
+  }
+
+  .site-header nav {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    width: 100%;
+    gap: 0;
+    border-top: 1px solid color-mix(in srgb, var(--site-header-line) 70%, transparent);
+  }
+
+  .site-header nav a {
+    width: 100%;
+    font-size: 0.8rem;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .site-header {
+    background: var(--site-header-bg);
+    backdrop-filter: none;
+  }
+}
+
+@media print {
+  .site-header {
+    display: none !important;
+  }
+
+  .workspace-page,
+  .comparison-page,
+  .about-page {
+    padding-top: 0;
+  }
+}
